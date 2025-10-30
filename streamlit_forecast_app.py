@@ -297,220 +297,188 @@ if mode == "Products":
     if filtered_items.empty:
         st.warning(" No data matches your filters. Please adjust your selections.")
     else:
-    # Calculate metrics
-    total_forecast = filtered_items["forecast"].sum()
-    num_products = filtered_items["product_core"].nunique()
-    num_days = filtered_items["createdAt"].dt.date.nunique()
-    avg_daily = total_forecast / num_days if num_days > 0 else 0
-    
-    # Historical reference
-    total_2023 = 29462.42
-    total_2024 = 33869.54
-    
-    if num_days >= 40:
-        growth_vs_2024 = ((total_forecast / total_2024) - 1)
-    else:
-        growth_vs_2024 = 0
-    
-    # Key metrics with enhanced visibility
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Total Forecast", f"€{total_forecast:,.2f}")
-    with col2:
+        # Calculate metrics
+        total_forecast = filtered_items["forecast"].sum()
+        num_products = filtered_items["product_core"].nunique()
+        num_days = filtered_items["createdAt"].dt.date.nunique()
+        avg_daily = total_forecast / num_days if num_days > 0 else 0
+        
+        # Historical reference
+        total_2023 = 29462.42
+        total_2024 = 33869.54
+        
         if num_days >= 40:
-            st.metric("vs 2024 Actual", f"€{total_2024:,.2f}", f"{growth_vs_2024:+.1%}")
+            growth_vs_2024 = ((total_forecast / total_2024) - 1)
         else:
-            st.metric("Daily Average", f"€{avg_daily:,.2f}")
-    with col3:
-        st.metric("Products", num_products)
-    with col4:
-        st.metric("Days", num_days)
-    
-    st.markdown("---")
-    
-    # Time Series Comparison: 2023 vs 2024 vs 2025
-    if num_days >= 40:
-        st.subheader(" Revenue Trend: 2023 vs 2024 vs 2025")
+            growth_vs_2024 = 0
         
-        try:
-            # Load historical data for comparison
-            fe = pd.read_csv("output_ml/clean_preprocessed_dataset.csv")
-            fe["createdAt"] = pd.to_datetime(fe["createdAt"])
-            fe = fe[fe["product_core"] != "UNKNOWN"]
-            
-            # Filter Nov-Dec for each year
-            fe_nov_dec = fe[fe["createdAt"].dt.month.isin([11, 12])].copy()
-            fe_nov_dec["date"] = fe_nov_dec["createdAt"].dt.date
-            fe_nov_dec["year"] = fe_nov_dec["createdAt"].dt.year
-            
-            # Aggregate by date for 2023 and 2024
-            daily_2023 = fe_nov_dec[fe_nov_dec["year"] == 2023].groupby("date")["total_item"].sum().reset_index()
-            daily_2023.columns = ["date", "revenue"]
-            daily_2023["year"] = "2023 Actual"
-            
-            daily_2024 = fe_nov_dec[fe_nov_dec["year"] == 2024].groupby("date")["total_item"].sum().reset_index()
-            daily_2024.columns = ["date", "revenue"]
-            daily_2024["year"] = "2024 Actual"
-            
-            # 2025 forecast data
-            daily_2025 = filtered_items.groupby(filtered_items["createdAt"].dt.date)["forecast"].sum().reset_index()
-            daily_2025.columns = ["date", "revenue"]
-            daily_2025["year"] = "2025 Forecast"
-            
-            # Normalize dates to same year for comparison (use 2023 as base)
-            daily_2023["day_of_period"] = (pd.to_datetime(daily_2023["date"]) - pd.to_datetime("2023-11-01")).dt.days
-            daily_2024["day_of_period"] = (pd.to_datetime(daily_2024["date"]) - pd.to_datetime("2024-11-01")).dt.days
-            daily_2025["day_of_period"] = (pd.to_datetime(daily_2025["date"]) - pd.to_datetime("2025-11-01")).dt.days
-            
-            # Calculate total revenue for each year
-            total_2023_calc = daily_2023['revenue'].sum()
-            total_2024_calc = daily_2024['revenue'].sum()
-            total_2025_calc = daily_2025['revenue'].sum()
-            
-            # Calculate growth rates
-            growth_2023_2024 = ((total_2024_calc / total_2023_calc) - 1) * 100 if total_2023_calc > 0 else 0
-            growth_2024_2025 = ((total_2025_calc / total_2024_calc) - 1) * 100 if total_2024_calc > 0 else 0
-            
-            # Create year-over-year comparison chart
-            years = ['2023', '2024', '2025']
-            totals = [total_2023_calc, total_2024_calc, total_2025_calc]
-            colors_list = [COLORS['green'], COLORS['orange'], COLORS['blue']]
-            
-            fig_timeseries = go.Figure()
-            
-            fig_timeseries.add_trace(go.Bar(
-                x=years,
-                y=totals,
-                marker=dict(
-                    color=colors_list,
-                    line=dict(color='#2c3e50', width=2),
-                    pattern=dict(
-                        shape=['', '', '/'],  # Only 2025 has stripes
-                        solidity=[0, 0, 0.3]
-                    )
-                ),
-                text=[
-                    f'€{total_2023_calc:,.0f}',
-                    f'€{total_2024_calc:,.0f}<br>+{growth_2023_2024:.1f}%',
-                    f'€{total_2025_calc:,.0f}<br>+{growth_2024_2025:.1f}%'
-                ],
-                textposition='outside',
-                textfont=dict(size=14, color='#2c3e50', family='Arial Black'),
-                hovertemplate='<b>%{x}</b><br>Total Revenue: €%{y:,.2f}<extra></extra>',
-                width=0.5
-            ))
-            
-            fig_timeseries.update_layout(
-                title=dict(
-                    text="Year-over-Year Revenue Comparison (Nov-Dec)",
-                    font=dict(size=20, color='#2c3e50', family='Arial', weight='bold')
-                ),
-                xaxis_title="Year",
-                yaxis_title="Total Revenue (€)",
-                height=450,
-                plot_bgcolor='#ffffff',
-                paper_bgcolor='#f8f9fa',
-                showlegend=False,
-                xaxis=dict(
-                    showgrid=False,
-                    tickfont=dict(size=14, color='#2c3e50', family='Arial'),
-                    zeroline=False
-                ),
-                yaxis=dict(
-                    showgrid=True,
-                    gridcolor='#d3d9de',
-                    gridwidth=1,
-                    tickfont=dict(size=12, color='#2c3e50'),
-                    tickformat='€,.0f',
-                    zeroline=False,
-                    range=[0, max(totals) * 1.15]  # Extra space for labels
-                ),
-                margin=dict(t=100, b=60, l=70, r=40)
-            )
-            
-            st.plotly_chart(fig_timeseries, use_container_width=True)
-            
-        except Exception as e:
-            st.warning(f"Could not load historical data for comparison: {e}")
-            # Fallback to simple bar chart
-            comparison_data = pd.DataFrame([
-                {"Year": "2023", "Total": total_2023},
-                {"Year": "2024", "Total": total_2024},
-                {"Year": "2025", "Total": total_forecast}
-            ])
-            
-            fig_simple = go.Figure()
-            fig_simple.add_trace(go.Bar(
-                x=comparison_data["Year"],
-                y=comparison_data["Total"],
-                marker_color=[COLORS['green'], COLORS['orange'], COLORS['blue']],
-                text=comparison_data["Total"].apply(lambda x: f"€{x:,.0f}"),
-                textposition="outside"
-            ))
-            fig_simple.update_layout(
-                title="Nov-Dec Revenue Comparison",
-                yaxis_title="Total Revenue (€)",
-                height=400
-            )
-            st.plotly_chart(fig_simple, use_container_width=True)
+        # Key metrics with enhanced visibility
+        col1, col2, col3, col4 = st.columns(4)
         
-        # Growth metrics
-        growth_2023_2024 = (total_2024 - total_2023) / total_2023
-        growth_2024_2025 = (total_forecast - total_2024) / total_2024
-        
-        col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("2023 Total", f"€{total_2023:,.2f}")
+            st.metric("Total Forecast", f"€{total_forecast:,.2f}")
         with col2:
-            st.metric("2024 Total", f"€{total_2024:,.2f}", f"{growth_2023_2024:+.1%}")
+            if num_days >= 40:
+                st.metric("vs 2024 Actual", f"€{total_2024:,.2f}", f"{growth_vs_2024:+.1%}")
+            else:
+                st.metric("Daily Average", f"€{avg_daily:,.2f}")
         with col3:
-            st.metric("2025 Forecast", f"€{total_forecast:,.2f}", f"{growth_2024_2025:+.1%}")
+            st.metric("Products", num_products)
+        with col4:
+            st.metric("Days", num_days)
         
         st.markdown("---")
-    
-    # Product Breakdown (Full Width)
-    st.subheader(" Forecast by Product")
-    product_agg = filtered_items.groupby("product_core")["forecast"].sum().reset_index()
-    
-    # Remove UNKNOWN and sort
-    product_agg = product_agg[product_agg["product_core"] != "UNKNOWN"]
-    product_agg = product_agg.sort_values("forecast", ascending=True)  # Horizontal bar
-    
-    fig_product = go.Figure()
-    
-    fig_product.add_trace(go.Bar(
-        y=product_agg["product_core"],
-        x=product_agg["forecast"],
-        orientation='h',
-        marker=dict(
-            color=product_agg["forecast"],
-            colorscale=[[0, COLORS['skyblue']], [1, COLORS['blue']]],
-            showscale=False
-        ),
-        text=product_agg["forecast"].apply(lambda x: f"€{x:,.0f}"),
-        textposition='outside',
-        textfont=dict(size=13, color='#2c3e50', weight=700),
-        hovertemplate='<b>%{y}</b><br>Forecast: €%{x:,.2f}<extra></extra>'
-    ))
-    
-    fig_product.update_layout(
-        title=dict(
-            text="Product Breakdown - All Variants Included",
-            font=dict(size=18, color='#2c3e50', weight=700)
-        ),
-        xaxis_title="Forecast Revenue (€)",
-        yaxis_title="",
-        height=450,
-        plot_bgcolor='#ffffff',
-        paper_bgcolor='#f8f9fa',
-        showlegend=False,
-        xaxis=dict(showgrid=True, gridcolor='#e1e8ed', gridwidth=1),
-        yaxis=dict(showgrid=False, tickfont=dict(size=14, weight=600)),
-        margin=dict(t=60, b=60, l=180, r=80)
-    )
-    
-    st.plotly_chart(fig_product, use_container_width=True)
+        
+        # Time Series Comparison: 2023 vs 2024 vs 2025
+        if num_days >= 40:
+            st.subheader(" Revenue Trend: 2023 vs 2024 vs 2025")
+            
+            try:
+                # Load historical data for comparison
+                fe = pd.read_csv("output_ml/clean_preprocessed_dataset.csv")
+                fe["createdAt"] = pd.to_datetime(fe["createdAt"])
+                fe = fe[fe["product_core"] != "UNKNOWN"]
+                
+                # Filter Nov-Dec for each year
+                fe_nov_dec = fe[fe["createdAt"].dt.month.isin([11, 12])].copy()
+                fe_nov_dec["date"] = fe_nov_dec["createdAt"].dt.date
+                fe_nov_dec["year"] = fe_nov_dec["createdAt"].dt.year
+                
+                # Aggregate by date for 2023 and 2024
+                daily_2023 = fe_nov_dec[fe_nov_dec["year"] == 2023].groupby("date")["total_item"].sum().reset_index()
+                daily_2023.columns = ["date", "revenue"]
+                daily_2023["year"] = "2023 Actual"
+                
+                daily_2024 = fe_nov_dec[fe_nov_dec["year"] == 2024].groupby("date")["total_item"].sum().reset_index()
+                daily_2024.columns = ["date", "revenue"]
+                daily_2024["year"] = "2024 Actual"
+                
+                # 2025 forecast data
+                daily_2025 = filtered_items.groupby(filtered_items["createdAt"].dt.date)["forecast"].sum().reset_index()
+                daily_2025.columns = ["date", "revenue"]
+                daily_2025["year"] = "2025 Forecast"
+                
+                # Normalize dates to same year for comparison (use 2023 as base)
+                daily_2023["day_of_period"] = (pd.to_datetime(daily_2023["date"]) - pd.to_datetime("2023-11-01")).dt.days
+                daily_2024["day_of_period"] = (pd.to_datetime(daily_2024["date"]) - pd.to_datetime("2024-11-01")).dt.days
+                daily_2025["day_of_period"] = (pd.to_datetime(daily_2025["date"]) - pd.to_datetime("2025-11-01")).dt.days
+                
+                # Calculate total revenue for each year
+                total_2023_calc = daily_2023['revenue'].sum()
+                total_2024_calc = daily_2024['revenue'].sum()
+                total_2025_calc = daily_2025['revenue'].sum()
+                
+                # Calculate growth rates
+                growth_2023_2024 = ((total_2024_calc / total_2023_calc) - 1) * 100 if total_2023_calc > 0 else 0
+                growth_2024_2025 = ((total_2025_calc / total_2024_calc) - 1) * 100 if total_2024_calc > 0 else 0
+                
+                # Create year-over-year comparison chart
+                years = ['2023', '2024', '2025']
+                totals = [total_2023_calc, total_2024_calc, total_2025_calc]
+                colors_list = [COLORS['green'], COLORS['orange'], COLORS['blue']]
+                
+                fig_timeseries = go.Figure()
+                
+                fig_timeseries.add_trace(go.Bar(
+                    x=years,
+                    y=totals,
+                    marker=dict(
+                        color=colors_list,
+                        line=dict(color='#2c3e50', width=2),
+                        pattern=dict(
+                            shape=['', '', '/'],  # Only 2025 has stripes
+                            solidity=[0, 0, 0.3]
+                        )
+                    ),
+                    text=[
+                        f'€{total_2023_calc:,.0f}',
+                        f'€{total_2024_calc:,.0f}<br>+{growth_2023_2024:.1f}%',
+                        f'€{total_2025_calc:,.0f}<br>+{growth_2024_2025:.1f}%'
+                    ],
+                    textposition='outside',
+                    textfont=dict(size=14, color='#2c3e50', family='Arial Black'),
+                    hovertemplate='<b>%{x}</b><br>Total Revenue: €%{y:,.2f}<extra></extra>',
+                    width=0.5
+                ))
+                
+                fig_timeseries.update_layout(
+                    title=dict(
+                        text="Year-over-Year Revenue Comparison (Nov-Dec)",
+                        font=dict(size=20, color='#2c3e50', family='Arial', weight='bold')
+                    ),
+                    xaxis_title="Year",
+                    yaxis_title="Total Revenue (€)",
+                    height=450,
+                    plot_bgcolor='#ffffff',
+                    paper_bgcolor='#f8f9fa',
+                    showlegend=False,
+                    xaxis=dict(
+                        showgrid=False,
+                        tickfont=dict(size=14, color='#2c3e50', family='Arial'),
+                        zeroline=False
+                    ),
+                    yaxis=dict(
+                        showgrid=True,
+                        gridcolor='#d3d9de',
+                        gridwidth=1,
+                        tickfont=dict(size=12, color='#2c3e50'),
+                        tickformat='€,.0f',
+                        zeroline=False,
+                        range=[0, max(totals) * 1.15]
+                    ),
+                    margin=dict(t=100, b=60, l=70, r=40)
+                )
+                
+                st.plotly_chart(fig_timeseries, use_container_width=True)
+                
+            except Exception as e:
+                st.warning(f"Could not load historical data for comparison: {e}")
+                comparison_data = pd.DataFrame([
+                    {"Year": "2023", "Total": total_2023},
+                    {"Year": "2024", "Total": total_2024},
+                    {"Year": "2025", "Total": total_forecast}
+                ])
+                fig_simple = go.Figure()
+                fig_simple.add_trace(go.Bar(
+                    x=comparison_data["Year"],
+                    y=comparison_data["Total"],
+                    marker_color=[COLORS['green'], COLORS['orange'], COLORS['blue']],
+                    text=comparison_data["Total"].apply(lambda x: f"€{x:,.0f}"),
+                    textposition="outside"
+                ))
+                fig_simple.update_layout(title="Nov-Dec Revenue Comparison", yaxis_title="Total Revenue (€)", height=400)
+                st.plotly_chart(fig_simple, use_container_width=True)
+            
+            # Growth metrics
+            growth_2023_2024 = (total_2024 - total_2023) / total_2023
+            growth_2024_2025 = (total_forecast - total_2024) / total_2024
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("2023 Total", f"€{total_2023:,.2f}")
+            with col2:
+                st.metric("2024 Total", f"€{total_2024:,.2f}", f"{growth_2023_2024:+.1%}")
+            with col3:
+                st.metric("2025 Forecast", f"€{total_forecast:,.2f}", f"{growth_2024_2025:+.1%}")
+            st.markdown("---")
+        
+        # Product Breakdown
+        st.subheader(" Forecast by Product")
+        product_agg = filtered_items.groupby("product_core")["forecast"].sum().reset_index()
+        product_agg = product_agg[product_agg["product_core"] != "UNKNOWN"]
+        product_agg = product_agg.sort_values("forecast", ascending=True)
+        fig_product = go.Figure()
+        fig_product.add_trace(go.Bar(
+            y=product_agg["product_core"],
+            x=product_agg["forecast"],
+            orientation='h',
+            marker=dict(color=product_agg["forecast"], colorscale=[[0, COLORS['skyblue']], [1, COLORS['blue']]], showscale=False),
+            text=product_agg["forecast"].apply(lambda x: f"€{x:,.0f}"),
+            textposition='outside',
+            textfont=dict(size=13, color='#2c3e50', weight=700),
+            hovertemplate='<b>%{y}</b><br>Forecast: €%{x:,.2f}<extra></extra>'
+        ))
+        fig_product.update_layout(title=dict(text="Product Breakdown - All Variants Included", font=dict(size=18, color='#2c3e50', weight=700)), xaxis_title="Forecast Revenue (€)", yaxis_title="", height=450, plot_bgcolor='#ffffff', paper_bgcolor='#f8f9fa', showlegend=False, xaxis=dict(showgrid=True, gridcolor='#e1e8ed', gridwidth=1), yaxis=dict(showgrid=False, tickfont=dict(size=14, weight=600)), margin=dict(t=60, b=60, l=180, r=80))
+        st.plotly_chart(fig_product, use_container_width=True)
 else:
     # Curling Track dashboard
     try:
