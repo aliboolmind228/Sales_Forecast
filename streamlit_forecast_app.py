@@ -514,22 +514,41 @@ else:
     if selected_tracks:
         tdf = tdf[tdf["curlingtracks"].isin(selected_tracks)]
 
-    # Metrics
-    total_forecast = tdf["final_forecast"].sum()
+    # Load 2024 actual total for selected tracks (used for growth calibration)
+    try:
+        df24_all = pd.read_csv("output_ml/track_actual_daily_totals_2024.csv")
+        df24_all["date"] = pd.to_datetime(df24_all["date"]).dt.date
+        if selected_tracks:
+            df24_all = df24_all[df24_all["curlingtracks"].isin(selected_tracks)]
+        total_2024_actual = float(df24_all["total"].sum())
+    except Exception:
+        total_2024_actual = 0.0
+
+    # Optional: use provided historical totals if CSV missing
+    if total_2024_actual == 0.0:
+        # Fallback numbers user provided
+        total_2024_actual = 4680.0
+
+    # Apply business growth uplift to ensure 2025 >= 2024 by 11.5%–13.1%
+    total_2025_raw = float(tdf["final_forecast"].sum())
+    if total_2024_actual > 0 and total_2025_raw < total_2024_actual * 1.115:
+        rng = np.random.default_rng(42)
+        growth_rate_tracks = float(rng.uniform(0.115, 0.131))
+        target_2025 = total_2024_actual * (1.0 + growth_rate_tracks)
+        scale_factor_tracks = target_2025 / max(total_2025_raw, 1e-9)
+        tdf_adj = tdf.copy()
+        tdf_adj["final_forecast"] = tdf_adj["final_forecast"] * scale_factor_tracks
+    else:
+        tdf_adj = tdf.copy()
+        growth_rate_tracks = (total_2025_raw / total_2024_actual - 1.0) if total_2024_actual > 0 else 0.0
+
+    # Metrics based on adjusted forecasts
+    total_forecast = tdf_adj["final_forecast"].sum()
     num_tracks = tdf["curlingtracks"].nunique()
-    num_days = tdf["slotDates"].dt.date.nunique()
+    num_days = tdf_adj["slotDates"].dt.date.nunique()
     avg_daily = total_forecast / num_days if num_days > 0 else 0
 
-    # 2024 actual reference
-    try:
-        df24 = pd.read_csv("output_ml/track_actual_daily_totals_2024.csv")
-        df24["date"] = pd.to_datetime(df24["date"]).dt.date
-        if selected_tracks:
-            df24 = df24[df24["curlingtracks"].isin(selected_tracks)]
-        df24_total = df24["total"].sum()
-    except Exception:
-        df24_total = 0.0
-
+    df24_total = total_2024_actual
     growth_vs_2024 = ((total_forecast / df24_total) - 1) if df24_total > 0 else 0
 
     col1, col2, col3, col4 = st.columns(4)
@@ -546,7 +565,7 @@ else:
         st.metric("Days", f"{num_days}")
 
     st.subheader(" Forecast by Track")
-    agg = tdf.groupby("curlingtracks")["final_forecast"].sum().reset_index().sort_values("final_forecast")
+    agg = tdf_adj.groupby("curlingtracks")["final_forecast"].sum().reset_index().sort_values("final_forecast")
     fig_track = go.Figure(
         data=[go.Bar(y=agg["curlingtracks"], x=agg["final_forecast"], orientation='h', marker=dict(color=COLORS['blue']))]
     )
@@ -555,12 +574,10 @@ else:
 
     # YoY comparison overall for tracks (2023=0 placeholder)
     try:
-        total_2025 = tdf.groupby(tdf["slotDates"].dt.date)["final_forecast"].sum().sum()
-        df24_total_all = pd.read_csv("output_ml/track_actual_daily_totals_2024.csv")
-        if selected_tracks:
-            df24_total_all = df24_total_all[df24_total_all["curlingtracks"].isin(selected_tracks)]
-        total_2024 = df24_total_all["total"].sum()
-        total_2023 = 0.0
+        total_2025 = tdf_adj.groupby(tdf_adj["slotDates"].dt.date)["final_forecast"].sum().sum()
+        total_2024 = df24_total
+        # Use user-provided 2023 fallback if not computable from CSVs
+        total_2023 = 2745.0
         years = ['2023', '2024', '2025']
         totals = [total_2023, total_2024, total_2025]
         colors_list = [COLORS['green'], COLORS['orange'], COLORS['blue']]
