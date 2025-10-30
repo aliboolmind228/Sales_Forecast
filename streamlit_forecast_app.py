@@ -514,7 +514,7 @@ if mode == "Products":
 else:
     # Curling Track dashboard
     try:
-        track_items = pd.read_csv("track/track_forecast_items_nov_dec_2025.csv")
+        track_items = pd.read_csv("output_ml/track_forecast_items_nov_dec_2025.csv")
         track_items["slotDates"] = pd.to_datetime(track_items["slotDates"])    
     except Exception:
         st.error("❌ Curling track forecast not found. Run track_ipynb to generate CSVs in track/.")
@@ -554,7 +554,7 @@ else:
 
     # 2024 actual reference
     try:
-        df24 = pd.read_csv("track/track_actual_daily_totals_2024.csv")
+        df24 = pd.read_csv("output_ml/track_actual_daily_totals_2024.csv")
         df24["date"] = pd.to_datetime(df24["date"]).dt.date
         if selected_tracks:
             df24 = df24[df24["curlingtracks"].isin(selected_tracks)]
@@ -588,7 +588,7 @@ else:
     # YoY comparison overall for tracks (2023=0 placeholder)
     try:
         total_2025 = tdf.groupby(tdf["slotDates"].dt.date)["final_forecast"].sum().sum()
-        df24_total_all = pd.read_csv("track/track_actual_daily_totals_2024.csv")
+        df24_total_all = pd.read_csv("output_ml/track_actual_daily_totals_2024.csv")
         if selected_tracks:
             df24_total_all = df24_total_all[df24_total_all["curlingtracks"].isin(selected_tracks)]
         total_2024 = df24_total_all["total"].sum()
