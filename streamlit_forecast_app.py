@@ -479,6 +479,25 @@ if mode == "Products":
         ))
         fig_product.update_layout(title=dict(text="Product Breakdown - All Variants Included", font=dict(size=18, color='#2c3e50', weight=700)), xaxis_title="Forecast Revenue (€)", yaxis_title="", height=450, plot_bgcolor='#ffffff', paper_bgcolor='#f8f9fa', showlegend=False, xaxis=dict(showgrid=True, gridcolor='#e1e8ed', gridwidth=1), yaxis=dict(showgrid=False, tickfont=dict(size=14, weight=600)), margin=dict(t=60, b=60, l=180, r=80))
         st.plotly_chart(fig_product, use_container_width=True)
+        
+        # Detailed Table - Aggregated by Date and Product
+        st.subheader(" Detailed Forecast Data")
+        
+        # Aggregate by date and product (sum all variants)
+        table_agg = filtered_items.groupby([filtered_items["createdAt"].dt.date, "product_core"])["forecast"].sum().reset_index()
+        table_agg.columns = ["Date", "Product", "Forecast (€)"]
+        table_agg["Forecast (€)"] = table_agg["Forecast (€)"].round(2)
+        table_agg = table_agg.sort_values(["Date", "Product"])
+        
+        st.dataframe(table_agg, use_container_width=True, height=400)
+        
+        csv = table_agg.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label=" Download Forecast CSV",
+            data=csv,
+            file_name=f"product_forecast_{start_date}_to_{end_date}.csv",
+            mime="text/csv"
+        )
 else:
     # Curling Track dashboard
     try:
@@ -507,40 +526,54 @@ else:
     else:
         start_date = end_date = date_range[0]
 
+    # Filter by date and ensure only weekdays (Mon-Fri)
     tdf = track_items[
         (track_items["slotDates"].dt.date >= start_date) &
-        (track_items["slotDates"].dt.date <= end_date)
+        (track_items["slotDates"].dt.date <= end_date) &
+        (~track_items["slotDates"].dt.weekday.isin([5, 6]))  # Exclude Sat/Sun
     ]
     if selected_tracks:
         tdf = tdf[tdf["curlingtracks"].isin(selected_tracks)]
 
-    # Load 2024 actual total for selected tracks (used for growth calibration)
+    # Load 2024 actual total for SELECTED date range (matching month-day pattern, weekdays only)
     try:
         df24_all = pd.read_csv("output_ml/track_actual_daily_totals_2024.csv")
         df24_all["date"] = pd.to_datetime(df24_all["date"]).dt.date
+        df24_all["date_dt"] = pd.to_datetime(df24_all["date"])
+        # Filter by month-day range (not year) and weekdays only
+        df24_all = df24_all[
+            (df24_all["date_dt"].dt.month == start_date.month) &
+            (df24_all["date_dt"].dt.day >= start_date.day) &
+            (df24_all["date_dt"].dt.month <= end_date.month) &
+            (df24_all["date_dt"].dt.day <= end_date.day) &
+            (~df24_all["date_dt"].dt.weekday.isin([5, 6]))
+        ]
         if selected_tracks:
             df24_all = df24_all[df24_all["curlingtracks"].isin(selected_tracks)]
         total_2024_actual = float(df24_all["total"].sum())
     except Exception:
         total_2024_actual = 0.0
 
-    # Optional: use provided historical totals if CSV missing
+    # Optional: use provided historical totals if CSV missing (proportionally scaled for date range)
     if total_2024_actual == 0.0:
-        # Fallback numbers user provided
-        total_2024_actual = 4680.0
+        # Fallback: scale full period (€4680 for Nov-Dec) proportionally to selected range
+        full_days = 44  # Nov-Dec weekdays
+        selected_days = len(tdf["slotDates"].dt.date.unique()) if len(tdf) > 0 else 1
+        total_2024_actual = (4680.0 / full_days) * selected_days
 
-    # Apply business growth uplift to ensure 2025 >= 2024 by 11.5%–13.1%
+    # Apply business growth uplift ONLY if filtered range total < 2024*1.115
     total_2025_raw = float(tdf["final_forecast"].sum())
     if total_2024_actual > 0 and total_2025_raw < total_2024_actual * 1.115:
-        rng = np.random.default_rng(42)
-        growth_rate_tracks = float(rng.uniform(0.115, 0.131))
+        np.random.seed(42)
+        growth_rate_tracks = float(np.random.uniform(0.115, 0.131))
         target_2025 = total_2024_actual * (1.0 + growth_rate_tracks)
         scale_factor_tracks = target_2025 / max(total_2025_raw, 1e-9)
-        tdf_adj = tdf.copy()
-        tdf_adj["final_forecast"] = tdf_adj["final_forecast"] * scale_factor_tracks
     else:
-        tdf_adj = tdf.copy()
+        scale_factor_tracks = 1.0
         growth_rate_tracks = (total_2025_raw / total_2024_actual - 1.0) if total_2024_actual > 0 else 0.0
+    
+    tdf_adj = tdf.copy()
+    tdf_adj["final_forecast"] = tdf_adj["final_forecast"] * scale_factor_tracks
 
     # Metrics based on adjusted forecasts
     total_forecast = tdf_adj["final_forecast"].sum()
@@ -566,10 +599,33 @@ else:
 
     st.subheader(" Forecast by Track")
     agg = tdf_adj.groupby("curlingtracks")["final_forecast"].sum().reset_index().sort_values("final_forecast")
-    fig_track = go.Figure(
-        data=[go.Bar(y=agg["curlingtracks"], x=agg["final_forecast"], orientation='h', marker=dict(color=COLORS['blue']))]
+    fig_track = go.Figure()
+    fig_track.add_trace(go.Bar(
+        y=agg["curlingtracks"],
+        x=agg["final_forecast"],
+        orientation='h',
+        marker=dict(
+            color=agg["final_forecast"],
+            colorscale=[[0, COLORS['skyblue']], [1, COLORS['blue']]],
+            showscale=False
+        ),
+        text=agg["final_forecast"].apply(lambda x: f"€{x:,.0f}"),
+        textposition='outside',
+        textfont=dict(size=13, color='#2c3e50', weight=700),
+        hovertemplate='<b>%{y}</b><br>Forecast: €%{x:,.2f}<extra></extra>'
+    ))
+    fig_track.update_layout(
+        title=dict(text="Track Breakdown", font=dict(size=18, color='#2c3e50', weight=700)),
+        xaxis_title="Forecast Revenue (€)",
+        yaxis_title="",
+        height=450,
+        plot_bgcolor='#ffffff',
+        paper_bgcolor='#f8f9fa',
+        showlegend=False,
+        xaxis=dict(showgrid=True, gridcolor='#e1e8ed', gridwidth=1),
+        yaxis=dict(showgrid=False, tickfont=dict(size=14, weight=600)),
+        margin=dict(t=60, b=60, l=180, r=80)
     )
-    fig_track.update_layout(height=420, xaxis_title="Forecast (€)", yaxis_title="Track", plot_bgcolor='#ffffff', paper_bgcolor='#f8f9fa', margin=dict(t=30,b=40,l=120,r=40))
     st.plotly_chart(fig_track, use_container_width=True)
 
     # YoY comparison overall for tracks (2023=0 placeholder)
@@ -583,7 +639,33 @@ else:
         colors_list = [COLORS['green'], COLORS['orange'], COLORS['blue']]
         fig_yoy = go.Figure()
         fig_yoy.add_trace(go.Bar(x=years, y=totals, marker=dict(color=colors_list, line=dict(color='#2c3e50', width=2), pattern=dict(shape=['','','/'], solidity=[0,0,0.3])), text=[f"€{totals[0]:,.0f}", f"€{totals[1]:,.0f}", f"€{totals[2]:,.0f}"], textposition='outside'))
-        fig_yoy.update_layout(title=dict(text="Year-over-Year Comparison (Curling Tracks)", font=dict(size=20,color='#2c3e50',family='Arial',weight='bold')), xaxis_title="Year", yaxis_title="Total (€)", height=450, plot_bgcolor='#ffffff', paper_bgcolor='#f8f9fa', showlegend=False, yaxis=dict(tickformat='€,.0f'))
+        fig_yoy.update_layout(
+            title=dict(
+                text="Year-over-Year Revenue Comparison (Curling Tracks)",
+                font=dict(size=20, color='#2c3e50', family='Arial', weight='bold')
+            ),
+            xaxis_title="Year",
+            yaxis_title="Total Revenue (€)",
+            height=450,
+            plot_bgcolor='#ffffff',
+            paper_bgcolor='#f8f9fa',
+            showlegend=False,
+            xaxis=dict(
+                showgrid=False,
+                tickfont=dict(size=14, color='#2c3e50', family='Arial'),
+                zeroline=False
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='#d3d9de',
+                gridwidth=1,
+                tickfont=dict(size=12, color='#2c3e50'),
+                tickformat='€,.0f',
+                zeroline=False,
+                range=[0, max(totals) * 1.15] if totals else None
+            ),
+            margin=dict(t=100, b=60, l=70, r=40)
+        )
         st.plotly_chart(fig_yoy, use_container_width=True)
     except Exception:
         pass
