@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Data files - exclude large/temporary CSVs
+**/output_ml/clean_preprocessed_dataset.csv
+**/output_ml/forecast_items_nov_dec_2025.csv
+**/output_ml/forecast_nov_dec_2025_weekdays.csv
+product_2024_cleaned.csv
+product_2024.csv
+track_2024.csv
+forecast_nov_dec_2025_weekdays.csv
+csv_preview.txt
+date_analysis_script.py
+create_notebook.py
+forecast_pipeline.py
+fix_unknown_redistribute.py
+RUN_DASHBOARD.txt
+
+# Keep only essential input CSVs:
+# Final_product_2023_sp.csv (included)
+# Final_product_2024_fp.csv (included)
+
+# Exclude other analysis notebooks
+ML_Forcast.ipynb
+ML_Forec.ipynb
+Analysis*.ipynb
+2_Weeks_Analysis.ipynb
+Curling_Track_Analysis.ipynb
+Final_Analysis.ipynb
+
+# Exclude all deal/track CSVs (not part of main project)
+Final_deal_*.csv
+Final_track_*.csv
+fresh-deals.csv
+tbl_*.csv
+migrations.csv
+
+# Exclude 2023 raw data folder
+2023_Data/
+
+# Exclude output folders (except model artifacts)
+output/
+catboost_info/
+
+# Model files (large files)
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+
+# Streamlit
+.streamlit/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+

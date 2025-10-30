@@ -1,0 +1,542 @@
+"""
+Sales Forecasting Dashboard - Nov-Dec 2025
+Color-blind friendly UI with smart cascading filters
+"""
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+from joblib import load
+import os
+
+# Page config
+st.set_page_config(
+    page_title="Sales Forecasting Dashboard",
+    page_icon=" ",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Color-blind friendly palette (Okabe-Ito + accessible colors)
+COLORS = {
+    'blue': '#0173B2',
+    'orange': '#DE8F05',
+    'green': '#029E73',
+    'purple': '#CC78BC',
+    'brown': '#CA9161',
+    'skyblue': '#56B4E9',
+}
+
+CHART_COLORS = [COLORS['blue'], COLORS['orange'], COLORS['green'], COLORS['purple'], COLORS['brown']]
+
+# Custom CSS
+st.markdown("""
+<style>
+.main {
+    background-color: #f8f9fa;
+}
+
+/* Metric cards - highly visible */
+div[data-testid="metric-container"] {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border: 3px solid #0173B2;
+    padding: 25px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(1,115,178,0.15);
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #0173B2 !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2c3e50 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+[data-testid="stMetricDelta"] {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #ffffff;
+    border-right: 3px solid #e1e8ed;
+}
+
+.sidebar .sidebar-content {
+    background-color: #ffffff;
+}
+
+/* Headers */
+h1 {
+    color: #0173B2 !important;
+    font-weight: 800 !important;
+    padding-bottom: 10px;
+    border-bottom: 4px solid #0173B2;
+}
+
+h2, h3 {
+    color: #2c3e50 !important;
+    font-weight: 700 !important;
+}
+
+/* Selectbox styling */
+div[data-baseweb="select"] {
+    border: 2px solid #0173B2 !important;
+    border-radius: 8px;
+}
+
+/* Download button */
+.stDownloadButton button {
+    background-color: #029E73 !important;
+    color: white !important;
+    border-radius: 8px;
+    font-weight: 600;
+    border: none;
+    padding: 12px 28px;
+    box-shadow: 0 4px 8px rgba(2,158,115,0.3);
+}
+
+.stDownloadButton button:hover {
+    background-color: #02735a !important;
+    box-shadow: 0 6px 12px rgba(2,158,115,0.4);
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Hardcoded Product-Variant Mapping (showing only main variants to user)
+# Note: Data has more variants (143,144,148,149,150,161,187) but we show only these
+PRODUCT_VARIANTS = {
+    "Entree schaatsbaan": {
+        "Volwassen": "185",
+        "Kinderen": "186"
+    },
+    "Reuzenrad": {
+        "Volwassen": "183",
+        "Kinderen": "184"
+    },
+    "Carrousel": {
+        "Kinderen": "153"
+    },
+    "Schaatsverhuur": {
+        "Kinderen": "188"
+    },
+    "Handschoenen": {
+        "Volwassen": "159"
+    }
+}
+
+# All actual variant IDs in the data (for backend filtering)
+ALL_VARIANT_IDS = ["143", "144", "148", "149", "150", "153", "159", "161", "183", "184", "185", "186", "187", "188"]
+
+def get_variant_id_for_display(product, variant_name):
+    """Convert variant display name to ID for backend"""
+    if product in PRODUCT_VARIANTS:
+        return PRODUCT_VARIANTS[product].get(variant_name, None)
+    return None
+
+def get_variants_for_product(product):
+    """Get available variant names for a product"""
+    if product in PRODUCT_VARIANTS:
+        return list(PRODUCT_VARIANTS[product].keys())
+    return []
+
+@st.cache_data
+def load_forecast_data():
+    """Load forecast data"""
+    try:
+        forecast_items = pd.read_csv("output_ml/forecast_items_nov_dec_2025.csv")
+        forecast_items["createdAt"] = pd.to_datetime(forecast_items["createdAt"])
+        forecast_items["variant_id"] = forecast_items["variant_id"].astype(str)
+        
+        if "forecast" not in forecast_items.columns:
+            st.error("❌ Forecast predictions not found.")
+            st.info("Run: python generate_forecast_predictions.py")
+            st.stop()
+        
+        return forecast_items
+    except FileNotFoundError:
+        st.error("❌ Forecast data not found.")
+        st.info("Run: python generate_forecast_predictions.py")
+        st.stop()
+
+# Load data
+forecast_items = load_forecast_data()
+
+# Filter out UNKNOWN products immediately
+forecast_items = forecast_items[forecast_items["product_core"] != "UNKNOWN"].copy()
+
+# Get unique values for filters (already filtered, no UNKNOWN)
+all_products = sorted(forecast_items["product_core"].unique())
+all_dates = sorted(forecast_items["createdAt"].dt.date.unique())
+
+# Title
+st.title(" Sales Forecasting Dashboard")
+st.markdown("### November - December 2025 Forecast")
+
+# Sidebar filters
+st.sidebar.header(" Filters")
+
+st.sidebar.info("**How to use:**\n"
+                "• Select date range (Mon-Fri only)\n"
+                "• Choose product(s)\n"
+                "• Pick specific variant(s)")
+
+# Date selection
+st.sidebar.subheader(" Date Range")
+min_date, max_date = min(all_dates), max(all_dates)
+date_range = st.sidebar.date_input(
+    "Select dates",
+    value=(min_date, max_date),
+    min_value=min_date,
+    max_value=max_date,
+    help="Weekdays only (Mon-Fri)"
+)
+
+# Product selection
+st.sidebar.subheader(" Products")
+product_filter = st.sidebar.multiselect(
+    "Select products",
+    options=all_products,
+    default=all_products,
+    help="Select one or more products"
+)
+
+# CASCADING VARIANT FILTER
+st.sidebar.subheader(" Product Variants")
+
+# By default, use ALL variant IDs to ensure complete data
+variant_filter_ids = ALL_VARIANT_IDS  # Start with all 14 variants
+
+if product_filter:
+    # Get available variants for selected products (from hardcoded mapping)
+    available_variants = {}
+    for product in product_filter:
+        variants = get_variants_for_product(product)
+        for variant in variants:
+            # Create unique key: "Product - Variant"
+            display_key = f"{product} - {variant}"
+            variant_id = get_variant_id_for_display(product, variant)
+            if variant_id:
+                available_variants[display_key] = {
+                    'product': product,
+                    'variant_name': variant,
+                    'variant_id': variant_id
+                }
+    
+    if available_variants:
+        # Show variant selector with "Product - Variant" format
+        selected_variant_keys = st.sidebar.multiselect(
+            "Select variants (optional)",
+            options=list(available_variants.keys()),
+            default=list(available_variants.keys()),
+            help="Choose specific variants or keep all selected"
+        )
+        
+        # Convert selected display names to variant IDs for backend
+        selected_variant_ids = [
+            available_variants[key]['variant_id'] 
+            for key in selected_variant_keys
+        ]
+        
+        # If all displayed variants are selected, use ALL variant IDs (includes hidden variants)
+        if len(selected_variant_keys) == len(available_variants):
+            # User selected "all" - include ALL 14 variants in data
+            variant_filter_ids = ALL_VARIANT_IDS
+        else:
+            # User selected specific variants only - use just those
+            variant_filter_ids = selected_variant_ids
+    else:
+        # No variants available - use all to show data
+        variant_filter_ids = ALL_VARIANT_IDS
+else:
+    # No products selected - use all
+    product_filter = all_products
+    variant_filter_ids = ALL_VARIANT_IDS
+
+# Filter data
+if len(date_range) == 2:
+    start_date, end_date = date_range
+else:
+    start_date = end_date = date_range[0]
+
+filtered_items = forecast_items[
+    (forecast_items["createdAt"].dt.date >= start_date) &
+    (forecast_items["createdAt"].dt.date <= end_date)
+]
+
+# Filter by selected products
+if product_filter:
+    filtered_items = filtered_items[filtered_items["product_core"].isin(product_filter)]
+
+# Filter by selected variant IDs (backend uses string IDs after CSV load)
+if variant_filter_ids:
+    # variant_id is already string in DataFrame (converted at load time)
+    filtered_items = filtered_items[filtered_items["variant_id"].isin(variant_filter_ids)]
+
+# Main dashboard
+if filtered_items.empty:
+    st.warning(" No data matches your filters. Please adjust your selections.")
+else:
+    # Calculate metrics
+    total_forecast = filtered_items["forecast"].sum()
+    num_products = filtered_items["product_core"].nunique()
+    num_days = filtered_items["createdAt"].dt.date.nunique()
+    avg_daily = total_forecast / num_days if num_days > 0 else 0
+    
+    # Historical reference
+    total_2023 = 29462.42
+    total_2024 = 33869.54
+    
+    if num_days >= 40:
+        growth_vs_2024 = ((total_forecast / total_2024) - 1)
+    else:
+        growth_vs_2024 = 0
+    
+    # Key metrics with enhanced visibility
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Forecast", f"€{total_forecast:,.2f}")
+    with col2:
+        if num_days >= 40:
+            st.metric("vs 2024 Actual", f"€{total_2024:,.2f}", f"{growth_vs_2024:+.1%}")
+        else:
+            st.metric("Daily Average", f"€{avg_daily:,.2f}")
+    with col3:
+        st.metric("Products", num_products)
+    with col4:
+        st.metric("Days", num_days)
+    
+    st.markdown("---")
+    
+    # Time Series Comparison: 2023 vs 2024 vs 2025
+    if num_days >= 40:
+        st.subheader(" Revenue Trend: 2023 vs 2024 vs 2025")
+        
+        try:
+            # Load historical data for comparison
+            fe = pd.read_csv("output_ml/clean_preprocessed_dataset.csv")
+            fe["createdAt"] = pd.to_datetime(fe["createdAt"])
+            fe = fe[fe["product_core"] != "UNKNOWN"]
+            
+            # Filter Nov-Dec for each year
+            fe_nov_dec = fe[fe["createdAt"].dt.month.isin([11, 12])].copy()
+            fe_nov_dec["date"] = fe_nov_dec["createdAt"].dt.date
+            fe_nov_dec["year"] = fe_nov_dec["createdAt"].dt.year
+            
+            # Aggregate by date for 2023 and 2024
+            daily_2023 = fe_nov_dec[fe_nov_dec["year"] == 2023].groupby("date")["total_item"].sum().reset_index()
+            daily_2023.columns = ["date", "revenue"]
+            daily_2023["year"] = "2023 Actual"
+            
+            daily_2024 = fe_nov_dec[fe_nov_dec["year"] == 2024].groupby("date")["total_item"].sum().reset_index()
+            daily_2024.columns = ["date", "revenue"]
+            daily_2024["year"] = "2024 Actual"
+            
+            # 2025 forecast data
+            daily_2025 = filtered_items.groupby(filtered_items["createdAt"].dt.date)["forecast"].sum().reset_index()
+            daily_2025.columns = ["date", "revenue"]
+            daily_2025["year"] = "2025 Forecast"
+            
+            # Normalize dates to same year for comparison (use 2023 as base)
+            daily_2023["day_of_period"] = (pd.to_datetime(daily_2023["date"]) - pd.to_datetime("2023-11-01")).dt.days
+            daily_2024["day_of_period"] = (pd.to_datetime(daily_2024["date"]) - pd.to_datetime("2024-11-01")).dt.days
+            daily_2025["day_of_period"] = (pd.to_datetime(daily_2025["date"]) - pd.to_datetime("2025-11-01")).dt.days
+            
+            # Calculate total revenue for each year
+            total_2023_calc = daily_2023['revenue'].sum()
+            total_2024_calc = daily_2024['revenue'].sum()
+            total_2025_calc = daily_2025['revenue'].sum()
+            
+            # Calculate growth rates
+            growth_2023_2024 = ((total_2024_calc / total_2023_calc) - 1) * 100 if total_2023_calc > 0 else 0
+            growth_2024_2025 = ((total_2025_calc / total_2024_calc) - 1) * 100 if total_2024_calc > 0 else 0
+            
+            # Create year-over-year comparison chart
+            years = ['2023', '2024', '2025']
+            totals = [total_2023_calc, total_2024_calc, total_2025_calc]
+            colors_list = [COLORS['green'], COLORS['orange'], COLORS['blue']]
+            
+            fig_timeseries = go.Figure()
+            
+            fig_timeseries.add_trace(go.Bar(
+                x=years,
+                y=totals,
+                marker=dict(
+                    color=colors_list,
+                    line=dict(color='#2c3e50', width=2),
+                    pattern=dict(
+                        shape=['', '', '/'],  # Only 2025 has stripes
+                        solidity=[0, 0, 0.3]
+                    )
+                ),
+                text=[
+                    f'€{total_2023_calc:,.0f}',
+                    f'€{total_2024_calc:,.0f}<br>+{growth_2023_2024:.1f}%',
+                    f'€{total_2025_calc:,.0f}<br>+{growth_2024_2025:.1f}%'
+                ],
+                textposition='outside',
+                textfont=dict(size=14, color='#2c3e50', family='Arial Black'),
+                hovertemplate='<b>%{x}</b><br>Total Revenue: €%{y:,.2f}<extra></extra>',
+                width=0.5
+            ))
+            
+            fig_timeseries.update_layout(
+                title=dict(
+                    text="Year-over-Year Revenue Comparison (Nov-Dec)",
+                    font=dict(size=20, color='#2c3e50', family='Arial', weight='bold')
+                ),
+                xaxis_title="Year",
+                yaxis_title="Total Revenue (€)",
+                height=450,
+                plot_bgcolor='#ffffff',
+                paper_bgcolor='#f8f9fa',
+                showlegend=False,
+                xaxis=dict(
+                    showgrid=False,
+                    tickfont=dict(size=14, color='#2c3e50', family='Arial'),
+                    zeroline=False
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='#d3d9de',
+                    gridwidth=1,
+                    tickfont=dict(size=12, color='#2c3e50'),
+                    tickformat='€,.0f',
+                    zeroline=False,
+                    range=[0, max(totals) * 1.15]  # Extra space for labels
+                ),
+                margin=dict(t=100, b=60, l=70, r=40)
+            )
+            
+            st.plotly_chart(fig_timeseries, use_container_width=True)
+            
+        except Exception as e:
+            st.warning(f"Could not load historical data for comparison: {e}")
+            # Fallback to simple bar chart
+            comparison_data = pd.DataFrame([
+                {"Year": "2023", "Total": total_2023},
+                {"Year": "2024", "Total": total_2024},
+                {"Year": "2025", "Total": total_forecast}
+            ])
+            
+            fig_simple = go.Figure()
+            fig_simple.add_trace(go.Bar(
+                x=comparison_data["Year"],
+                y=comparison_data["Total"],
+                marker_color=[COLORS['green'], COLORS['orange'], COLORS['blue']],
+                text=comparison_data["Total"].apply(lambda x: f"€{x:,.0f}"),
+                textposition="outside"
+            ))
+            fig_simple.update_layout(
+                title="Nov-Dec Revenue Comparison",
+                yaxis_title="Total Revenue (€)",
+                height=400
+            )
+            st.plotly_chart(fig_simple, use_container_width=True)
+        
+        # Growth metrics
+        growth_2023_2024 = (total_2024 - total_2023) / total_2023
+        growth_2024_2025 = (total_forecast - total_2024) / total_2024
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("2023 Total", f"€{total_2023:,.2f}")
+        with col2:
+            st.metric("2024 Total", f"€{total_2024:,.2f}", f"{growth_2023_2024:+.1%}")
+        with col3:
+            st.metric("2025 Forecast", f"€{total_forecast:,.2f}", f"{growth_2024_2025:+.1%}")
+        
+        st.markdown("---")
+    
+    # Product Breakdown (Full Width)
+    st.subheader(" Forecast by Product")
+    product_agg = filtered_items.groupby("product_core")["forecast"].sum().reset_index()
+    
+    # Remove UNKNOWN and sort
+    product_agg = product_agg[product_agg["product_core"] != "UNKNOWN"]
+    product_agg = product_agg.sort_values("forecast", ascending=True)  # Horizontal bar
+    
+    fig_product = go.Figure()
+    
+    fig_product.add_trace(go.Bar(
+        y=product_agg["product_core"],
+        x=product_agg["forecast"],
+        orientation='h',
+        marker=dict(
+            color=product_agg["forecast"],
+            colorscale=[[0, COLORS['skyblue']], [1, COLORS['blue']]],
+            showscale=False
+        ),
+        text=product_agg["forecast"].apply(lambda x: f"€{x:,.0f}"),
+        textposition='outside',
+        textfont=dict(size=13, color='#2c3e50', weight=700),
+        hovertemplate='<b>%{y}</b><br>Forecast: €%{x:,.2f}<extra></extra>'
+    ))
+    
+    fig_product.update_layout(
+        title=dict(
+            text="Product Breakdown - All Variants Included",
+            font=dict(size=18, color='#2c3e50', weight=700)
+        ),
+        xaxis_title="Forecast Revenue (€)",
+        yaxis_title="",
+        height=450,
+        plot_bgcolor='#ffffff',
+        paper_bgcolor='#f8f9fa',
+        showlegend=False,
+        xaxis=dict(showgrid=True, gridcolor='#e1e8ed', gridwidth=1),
+        yaxis=dict(showgrid=False, tickfont=dict(size=14, weight=600)),
+        margin=dict(t=60, b=60, l=180, r=80)
+    )
+    
+    st.plotly_chart(fig_product, use_container_width=True)
+    
+    # Detailed Table - Aggregated by Date and Product
+    st.subheader(" Detailed Forecast Data")
+    
+    # Aggregate by date and product (sum all variants)
+    table_agg = filtered_items.groupby([filtered_items["createdAt"].dt.date, "product_core"])["forecast"].sum().reset_index()
+    table_agg.columns = ["Date", "Product", "Forecast (€)"]
+    table_agg["Forecast (€)"] = table_agg["Forecast (€)"].round(2)
+    
+    # Sort by date and product
+    table_agg = table_agg.sort_values(["Date", "Product"])
+    
+    display_df = table_agg
+    
+    # Show with styling
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        height=400
+    )
+    
+    # Download button
+    csv = display_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label=" Download Forecast CSV",
+        data=csv,
+        file_name=f"forecast_{start_date}_to_{end_date}.csv",
+        mime="text/csv"
+    )
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #7f8c8d; padding: 20px;'>
+    <p style='font-size: 1.1rem; font-weight: 600; color: #2c3e50;'><strong>Sales Forecasting Dashboard</strong></p>
+    <p style='font-size: 0.95rem;'>Powered by Machine Learning | Stacking Ensemble Model</p>
+    <p style='font-size: 0.85rem; color: #95a5a6;'>Color-blind friendly design ● Accessible interface</p>
+</div>
+""", unsafe_allow_html=True)
