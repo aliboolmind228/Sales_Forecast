@@ -183,13 +183,16 @@ all_dates = sorted(forecast_items["createdAt"].dt.date.unique())
 st.title(" Sales Forecasting Dashboard")
 st.markdown("### November - December 2025 Forecast")
 
+# Mode selector: Products (default) or Curling Track
+mode = st.radio("Select view", ["Products", "Curling Track"], index=0, horizontal=True)
+
 # Sidebar filters
 st.sidebar.header(" Filters")
 
 st.sidebar.info("**How to use:**\n"
                 "• Select date range (Mon-Fri only)\n"
-                "• Choose product(s)\n"
-                "• Pick specific variant(s)")
+                "• Choose product(s) or tracks\n"
+                "• Pick specific variant(s) when in Products view")
 
 # Date selection
 st.sidebar.subheader(" Date Range")
@@ -202,20 +205,26 @@ date_range = st.sidebar.date_input(
     help="Weekdays only (Mon-Fri)"
 )
 
-# Product selection
-st.sidebar.subheader(" Products")
-product_filter = st.sidebar.multiselect(
-    "Select products",
-    options=all_products,
-    default=all_products,
-    help="Select one or more products"
-)
+if mode == "Products":
+    # Product selection
+    st.sidebar.subheader(" Products")
+    product_filter = st.sidebar.multiselect(
+        "Select products",
+        options=all_products,
+        default=all_products,
+        help="Select one or more products"
+    )
+else:
+    product_filter = []
 
-# CASCADING VARIANT FILTER
-st.sidebar.subheader(" Product Variants")
+if mode == "Products":
+    # CASCADING VARIANT FILTER
+    st.sidebar.subheader(" Product Variants")
 
-# By default, use ALL variant IDs to ensure complete data
-variant_filter_ids = ALL_VARIANT_IDS  # Start with all 14 variants
+    # By default, use ALL variant IDs to ensure complete data
+    variant_filter_ids = ALL_VARIANT_IDS  # Start with all 14 variants
+else:
+    variant_filter_ids = []
 
 if product_filter:
     # Get available variants for selected products (from hardcoded mapping)
@@ -283,10 +292,11 @@ if variant_filter_ids:
     # variant_id is already string in DataFrame (converted at load time)
     filtered_items = filtered_items[filtered_items["variant_id"].isin(variant_filter_ids)]
 
-# Main dashboard
-if filtered_items.empty:
-    st.warning(" No data matches your filters. Please adjust your selections.")
-else:
+if mode == "Products":
+    # Main dashboard (Products)
+    if filtered_items.empty:
+        st.warning(" No data matches your filters. Please adjust your selections.")
+    else:
     # Calculate metrics
     total_forecast = filtered_items["forecast"].sum()
     num_products = filtered_items["product_core"].nunique()
@@ -501,6 +511,97 @@ else:
     )
     
     st.plotly_chart(fig_product, use_container_width=True)
+else:
+    # Curling Track dashboard
+    try:
+        track_items = pd.read_csv("track/track_forecast_items_nov_dec_2025.csv")
+        track_items["slotDates"] = pd.to_datetime(track_items["slotDates"])    
+    except Exception:
+        st.error("❌ Curling track forecast not found. Run track_ipynb to generate CSVs in track/.")
+        st.stop()
+
+    # Sidebar: track filter (1, 2)
+    st.sidebar.subheader(" Curling Tracks")
+    all_tracks = sorted(track_items["curlingtracks"].unique().tolist())
+    track_map = {"Street Curlingbaan 1": "1", "Street Curlingbaan 2": "2"}
+    inv_map = {v: k for k, v in track_map.items()}
+    track_options = [track_map.get(t, t) for t in all_tracks]
+    selected_track_labels = st.sidebar.multiselect(
+        "Select track(s)",
+        options=sorted(set(track_options)),
+        default=sorted(set(track_options))
+    )
+    selected_tracks = [inv_map.get(lbl, lbl) for lbl in selected_track_labels] if selected_track_labels else all_tracks
+
+    # Date filter (reuse existing date_range)
+    if len(date_range) == 2:
+        start_date, end_date = date_range
+    else:
+        start_date = end_date = date_range[0]
+
+    tdf = track_items[
+        (track_items["slotDates"].dt.date >= start_date) &
+        (track_items["slotDates"].dt.date <= end_date)
+    ]
+    if selected_tracks:
+        tdf = tdf[tdf["curlingtracks"].isin(selected_tracks)]
+
+    # Metrics
+    total_forecast = tdf["final_forecast"].sum()
+    num_tracks = tdf["curlingtracks"].nunique()
+    num_days = tdf["slotDates"].dt.date.nunique()
+    avg_daily = total_forecast / num_days if num_days > 0 else 0
+
+    # 2024 actual reference
+    try:
+        df24 = pd.read_csv("track/track_actual_daily_totals_2024.csv")
+        df24["date"] = pd.to_datetime(df24["date"]).dt.date
+        if selected_tracks:
+            df24 = df24[df24["curlingtracks"].isin(selected_tracks)]
+        df24_total = df24["total"].sum()
+    except Exception:
+        df24_total = 0.0
+
+    growth_vs_2024 = ((total_forecast / df24_total) - 1) if df24_total > 0 else 0
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Forecast", f"€{total_forecast:,.2f}")
+    with col2:
+        if df24_total > 0:
+            st.metric("vs 2024 Actual", f"€{df24_total:,.2f}", f"{growth_vs_2024:+.1%}")
+        else:
+            st.metric("Daily Average", f"€{avg_daily:,.2f}")
+    with col3:
+        st.metric("Tracks", f"{num_tracks}")
+    with col4:
+        st.metric("Days", f"{num_days}")
+
+    st.subheader(" Forecast by Track")
+    agg = tdf.groupby("curlingtracks")["final_forecast"].sum().reset_index().sort_values("final_forecast")
+    fig_track = go.Figure(
+        data=[go.Bar(y=agg["curlingtracks"], x=agg["final_forecast"], orientation='h', marker=dict(color=COLORS['blue']))]
+    )
+    fig_track.update_layout(height=420, xaxis_title="Forecast (€)", yaxis_title="Track", plot_bgcolor='#ffffff', paper_bgcolor='#f8f9fa', margin=dict(t=30,b=40,l=120,r=40))
+    st.plotly_chart(fig_track, use_container_width=True)
+
+    # YoY comparison overall for tracks (2023=0 placeholder)
+    try:
+        total_2025 = tdf.groupby(tdf["slotDates"].dt.date)["final_forecast"].sum().sum()
+        df24_total_all = pd.read_csv("track/track_actual_daily_totals_2024.csv")
+        if selected_tracks:
+            df24_total_all = df24_total_all[df24_total_all["curlingtracks"].isin(selected_tracks)]
+        total_2024 = df24_total_all["total"].sum()
+        total_2023 = 0.0
+        years = ['2023', '2024', '2025']
+        totals = [total_2023, total_2024, total_2025]
+        colors_list = [COLORS['green'], COLORS['orange'], COLORS['blue']]
+        fig_yoy = go.Figure()
+        fig_yoy.add_trace(go.Bar(x=years, y=totals, marker=dict(color=colors_list, line=dict(color='#2c3e50', width=2), pattern=dict(shape=['','','/'], solidity=[0,0,0.3])), text=[f"€{totals[0]:,.0f}", f"€{totals[1]:,.0f}", f"€{totals[2]:,.0f}"], textposition='outside'))
+        fig_yoy.update_layout(title=dict(text="Year-over-Year Comparison (Curling Tracks)", font=dict(size=20,color='#2c3e50',family='Arial',weight='bold')), xaxis_title="Year", yaxis_title="Total (€)", height=450, plot_bgcolor='#ffffff', paper_bgcolor='#f8f9fa', showlegend=False, yaxis=dict(tickformat='€,.0f'))
+        st.plotly_chart(fig_yoy, use_container_width=True)
+    except Exception:
+        pass
     
     # Detailed Table - Aggregated by Date and Product
     st.subheader(" Detailed Forecast Data")
