@@ -588,16 +588,18 @@ else:
     except Exception:
         pass
     
-    # Detailed Table - Aggregated by Date and Product
+    # Detailed Table - Aggregated by Date and Curling Track
     st.subheader(" Detailed Forecast Data")
     
-    # Aggregate by date and product (sum all variants)
-    table_agg = filtered_items.groupby([filtered_items["createdAt"].dt.date, "product_core"])["forecast"].sum().reset_index()
-    table_agg.columns = ["Date", "Product", "Forecast (€)"]
+    # Aggregate by date and track (use adjusted forecasts)
+    table_agg = tdf_adj.copy()
+    table_agg["Date"] = table_agg["slotDates"].dt.date
+    table_agg = table_agg.groupby(["Date", "curlingtracks"], as_index=False)["final_forecast"].sum()
+    table_agg = table_agg.rename(columns={"curlingtracks": "Track", "final_forecast": "Forecast (€)"})
     table_agg["Forecast (€)"] = table_agg["Forecast (€)"].round(2)
     
-    # Sort by date and product
-    table_agg = table_agg.sort_values(["Date", "Product"])
+    # Sort by date and track
+    table_agg = table_agg.sort_values(["Date", "Track"])
     
     display_df = table_agg
     
@@ -613,7 +615,7 @@ else:
     st.download_button(
         label=" Download Forecast CSV",
         data=csv,
-        file_name=f"forecast_{start_date}_to_{end_date}.csv",
+        file_name=f"track_forecast_{start_date}_to_{end_date}.csv",
         mime="text/csv"
     )
 
