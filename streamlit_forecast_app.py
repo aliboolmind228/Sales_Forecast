@@ -737,6 +737,56 @@ elif mode == "Curling Track":
     except Exception:
         pass
     
+    # Hourly Unbooked Slots Chart (displayed automatically below YoY graph)
+    st.markdown("---")
+    st.subheader("Hourly Unbooked Slots(2023 vs 2024)")
+    
+    # -----------------------------
+    # Hourly Unbooked Data (Manual)
+    # -----------------------------
+    hours = [
+        "12:00","13:00","14:00","15:00","16:00","17:00",
+        "18:00","19:00","20:00","21:00","22:00","23:00"
+    ]
+
+    # These values are derived from your provided hourly analysis
+    unbooked_2023 = [13,13,10,9,9,11,7,16,16,16,18,17]
+    unbooked_2024 = [59,58,54,49,48,49,52,54,54,54,44,43]
+
+    # -----------------------------
+    # Plot Modern Comparison Chart
+    # -----------------------------
+    x = np.arange(len(hours))
+    width = 0.35
+
+    fig_hourly, ax_hourly = plt.subplots(figsize=(12, 6))
+    bars_2023 = ax_hourly.bar(x - width/2, unbooked_2023, width, label='2023 Unbooked', color='#F28B82', edgecolor='black')
+    bars_2024 = ax_hourly.bar(x + width/2, unbooked_2024, width, label='2024 Unbooked', color='#FBC02D', edgecolor='black')
+
+    # --- Value Labels ---
+    for bar in bars_2023 + bars_2024:
+        height = bar.get_height()
+        ax_hourly.text(bar.get_x() + bar.get_width()/2, height + 0.5, f'{int(height)}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+    # --- Titles and Labels ---
+    ax_hourly.set_xlabel("Hour of Day", fontsize=12, fontweight='bold')
+    ax_hourly.set_ylabel("Number of Unbooked Slots", fontsize=12, fontweight='bold')
+    ax_hourly.set_title("Hourly Unbooked Slots Comparison (2023 vs 2024)", fontsize=14, fontweight='bold', pad=15)
+
+    # --- X-Axis Settings ---
+    ax_hourly.set_xticks(x)
+    ax_hourly.set_xticklabels(hours, fontsize=11)
+    ax_hourly.legend(loc='upper right', fontsize=10)
+    ax_hourly.grid(axis='y', linestyle='--', alpha=0.6)
+
+    # --- Aesthetic Styling ---
+    fig_hourly.patch.set_facecolor('#fafafa')
+    ax_hourly.set_facecolor('#ffffff')
+    for spine in ax_hourly.spines.values():
+        spine.set_visible(False)
+
+    st.pyplot(fig_hourly)
+    
     # Detailed Table - Aggregated by Date and Curling Track
     st.subheader(" Detailed Forecast Data")
     
@@ -1194,6 +1244,7 @@ if mode == "Deals":
                     """,
                     unsafe_allow_html=True
                 )
+
 # ==============================
 # CurlingTrack Dashboard Enhancement
 # ==============================
@@ -1253,5 +1304,4 @@ if mode == "Curling Track":
             spine.set_visible(False)
 
         st.pyplot(fig)
-
 
