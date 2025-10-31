@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from joblib import load
 import os
+import random
 
 # Page config
 st.set_page_config(
@@ -981,3 +982,81 @@ if show_2week_comparison:
         st.error(f"❌ Forecast CSV not found for {mode} mode. Please ensure the forecast CSV exists in output_ml/.")
     except Exception as e:
         st.error(f"❌ Error generating 2-week comparison: {str(e)}")
+
+# ==========================
+#  PRODUCT RECOMMENDATION
+# ==========================
+#  This section only applies to the Product Dashboard
+# It dynamically displays 4 random expert suggestions per product each click
+# Aesthetic cards with pastel backgrounds and icons
+
+if mode == "Products":
+    st.markdown("---")
+    st.markdown("### Product Recommendation Assistant")
+    
+    # --- Recommendation data (Hardcoded) ---
+    carrousel_recs = [
+        "Offer a **'Family Ride Bundle'** (Carrousel + Reuzenrad) at 15% off.",
+        "Introduce **loyalty points** for families booking multiple rides in one visit.",
+        "Launch a **'Holiday Fun Pass'** for unlimited Carrousel rides during weekends.",
+        "Add **seasonal decorations or music** in December to boost visibility.",
+        "Promote **Carrousel Family Hour (3–6 PM)** with discounted rates.",
+        "Partner with local schools for **student discount passes** in November.",
+        "Offer a **'Photo Package'** with each Carrousel ride during December.",
+    ]
+    
+    handschoenen_recs = [
+        "Bundle **free gloves** with skating tickets for first 50 customers.",
+        "Offer **'Buy 1 Get 1 50% Off'** on gloves during cold weeks in December.",
+        "Add a **'Winter Essentials'** combo: gloves + hat + hot drink.",
+        "Display gloves prominently in the app during **November cold spells.**",
+        "Launch **Christmas limited edition gloves** (red-green theme).",
+        "Collaborate with influencers for **social media winter style posts.**",
+        "Offer **free glove customization (name embroidery)** in early December.",
+        "Create **mini glove stalls near the skating area** for impulse purchases.",
+        "Promote **'Warm Hands Challenge'** on social media with giveaways.",
+        "Add gloves as a **default upsell option** on checkout screen during winter.",
+    ]
+    
+    # --- Utility Function ---
+    def get_random_recs(recs, n=4):
+        return random.sample(recs, n)
+    
+    # --- UI Button ---
+    if st.button(" Product Recommendations"):
+        st.subheader(" Product Sales Insights & Recommendations")
+        
+        # --- Carrousel Section ---
+        st.markdown("####  Carrousel (Low Performance)")
+        selected_carrousel = get_random_recs(carrousel_recs, 4)
+        cols = st.columns(2)
+        for i, rec in enumerate(selected_carrousel):
+            with cols[i % 2]:
+                st.markdown(
+                    f"""
+                    <div style='background-color:#f0f9ff;padding:15px;border-radius:15px;
+                    margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,0.05)'>
+                    🔹 {rec}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        
+        # --- Handschoenen Section ---
+        st.markdown("####  Handschoenen (Very Low Performance)")
+        selected_handschoenen = get_random_recs(handschoenen_recs, 4)
+        cols = st.columns(2)
+        for i, rec in enumerate(selected_handschoenen):
+            with cols[i % 2]:
+                st.markdown(
+                    f"""
+                    <div style='background-color:#fff7ed;padding:15px;border-radius:15px;
+                    margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,0.05)'>
+                    🔹 {rec}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        
+        st.markdown("---")
+        st.info(" Click the button again to view new recommendation combinations. Keeps insights fresh and dynamic!")
