@@ -509,7 +509,7 @@ if mode == "Products":
 elif mode == "Curling Track":
     # Curling Track dashboard
     try:
-        track_items = pd.read_csv("output_ml/track_forecast_items_nov_dec_2025.csv")
+        track_items = pd.read_csv("output_ml/track_forecast_item_nov_dec_2025.csv")
         track_items["slotDates"] = pd.to_datetime(track_items["slotDates"])    
     except Exception:
         st.error("❌ Curling track forecast not found. Run track_ipynb to generate CSVs in track/.")
@@ -551,7 +551,7 @@ elif mode == "Curling Track":
 
     # Load 2024 actual total for SELECTED date range (matching month-day pattern, weekdays only)
     try:
-        df24_all = pd.read_csv("output_ml/track_actual_daily_totals_2024.csv")
+        df24_all = pd.read_csv("output_ml/track_actual_daily_total_2024.csv")
         df24_all["date"] = pd.to_datetime(df24_all["date"]).dt.date
         df24_all["date_dt"] = pd.to_datetime(df24_all["date"])
         # Filter by month-day range (not year) and weekdays only
@@ -656,7 +656,7 @@ elif mode == "Curling Track":
         
         # Load FULL 2024 actual (all Nov-Dec weekdays)
         try:
-            df24_full = pd.read_csv("output_ml/track_actual_daily_totals_2024.csv")
+            df24_full = pd.read_csv("output_ml/track_actual_daily_total_2024.csv")
             df24_full["date_dt"] = pd.to_datetime(df24_full["date"])
             df24_full = df24_full[
                 (~df24_full["date_dt"].dt.weekday.isin([5, 6])) &
@@ -880,7 +880,7 @@ if show_2week_comparison:
             
         elif mode == "Curling Track":
             # Load track forecast CSV
-            df_2025 = pd.read_csv("output_ml/track_forecast_items_nov_dec_2025.csv")
+            df_2025 = pd.read_csv("output_ml/track_forecast_item_nov_dec_2025.csv")
             df_2025["slotDates"] = pd.to_datetime(df_2025["slotDates"])
             # Filter Dec 1-14, 2025, weekdays only
             df_2week = df_2025[
@@ -1104,7 +1104,7 @@ if mode == "Curling Track":
                     f"""
                     <div style='background-color:#F0F9FF;padding:15px;margin:8px;border-radius:15px;
                     box-shadow:0px 2px 6px rgba(0,0,0,0.1);'>
-                    <h5 style='color:#0078D7;'> Tip {i+1}</h5>
+                    <h5 style='color:#0078D7;'>Tip {i+1}</h5>
                     <p style='color:#333;font-size:15px;'>{rec}</p>
                     </div>
                     """,
