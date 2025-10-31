@@ -1060,3 +1060,53 @@ if mode == "Products":
         
         st.markdown("---")
         st.info(" Click the button again to view new recommendation combinations. Keeps insights fresh and dynamic!")
+
+# =======================
+# Curling Track Recommendation Assistant
+# =======================
+if mode == "Curling Track":
+    st.markdown("---")
+    st.subheader("Curling Track Recommendation")
+
+    # Hardcoded list of 20 actionable recommendations
+    curling_recommendations = [
+        "Offer **Happy Hour Discounts** for slots after 9 PM to attract night visitors.",
+        "Create **Family Curling Packages** (4 players + 1 free drink) for weekdays.",
+        "Launch **Corporate Curling Fridays** – promote group bookings with 10% discount.",
+        "Add **Live Music / DJ Curling Nights** for Thursdays to fill evening slots.",
+        "Introduce **'Book 2 Hours, Get 3rd Free'** promotion for low-demand time slots.",
+        "Use **push notifications** on the app for unbooked hours (e.g., last-minute deals).",
+        "Highlight **Beginner-Friendly Curling Lessons** during morning unbooked slots.",
+        "Run **Winter Warm-Up Events** (hot chocolate + curling combo) in late evening.",
+        "Add **Dynamic Pricing** (lower price for less popular hours).",
+        "Promote **Team Challenges** on social media (e.g., best team time wins gift card).",
+        "In December, host **Christmas Curling Tournaments** with prizes for best costumes.",
+        "Offer **'Bring a Friend'** weekday deal – both get 20% off.",
+        "Use **email marketing** for returning users: promote time slots they've skipped before.",
+        "Convert unbooked morning slots into **student discount hours**.",
+        "Enable **quick group booking** for companies or schools via app widget.",
+        "Promote **Instagram photo contests** tagged at the curling rink.",
+        "Bundle **Curling + Snack Pack** deal for low-performing time blocks.",
+        "Partner with local cafés for **joint promotions** (coffee + curling combo).",
+        "Set up **weekly leagues or tournaments** in under-booked time slots.",
+        "Offer **free beginner equipment rentals** for bookings between 12 PM–4 PM.",
+    ]
+
+    if st.button(" Curling Recommendations"):
+        random_recommendations = random.sample(curling_recommendations, k=8)
+
+        st.markdown("####  Recommendations to Improve Curling Slot Bookings")
+
+        cols = st.columns(2)
+        for i, rec in enumerate(random_recommendations):
+            with cols[i % 2]:
+                st.markdown(
+                    f"""
+                    <div style='background-color:#F0F9FF;padding:15px;margin:8px;border-radius:15px;
+                    box-shadow:0px 2px 6px rgba(0,0,0,0.1);'>
+                    <h5 style='color:#0078D7;'>💡 Tip {i+1}</h5>
+                    <p style='color:#333;font-size:15px;'>{rec}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
