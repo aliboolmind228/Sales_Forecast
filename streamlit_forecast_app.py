@@ -914,14 +914,14 @@ elif mode == "Deals":
     st.download_button(label=" Download Forecast CSV", data=csv, file_name=f"deals_forecast_{start_date}_to_{end_date}.csv", mime="text/csv")
 
 # Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #7f8c8d; padding: 20px;'>
-    <p style='font-size: 1.1rem; font-weight: 600; color: #2c3e50;'><strong>Sales Forecasting Dashboard</strong></p>
-    <p style='font-size: 0.95rem;'>Powered by Machine Learning | Stacking Ensemble Model</p>
-    <p style='font-size: 0.85rem; color: #95a5a6;'>Color-blind friendly design ● Accessible interface</p>
-</div>
-""", unsafe_allow_html=True)
+# st.markdown("---")
+# st.markdown("""
+# <div style='text-align: center; color: #7f8c8d; padding: 20px;'>
+#     <p style='font-size: 1.1rem; font-weight: 600; color: #2c3e50;'><strong>Sales Forecasting Dashboard</strong></p>
+#     <p style='font-size: 0.95rem;'>Powered by Machine Learning | Stacking Ensemble Model</p>
+#     <p style='font-size: 0.85rem; color: #95a5a6;'>Color-blind friendly design ● Accessible interface</p>
+# </div>
+# """, unsafe_allow_html=True)
 
 # ============================================================================
 # 2-WEEK COMPARISON FEATURE (appended at end)
