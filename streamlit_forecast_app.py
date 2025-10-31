@@ -10,6 +10,7 @@ import plotly.express as px
 from joblib import load
 import os
 import random
+import matplotlib.pyplot as plt
 
 # Page config
 st.set_page_config(
@@ -1193,4 +1194,64 @@ if mode == "Deals":
                     """,
                     unsafe_allow_html=True
                 )
+# ==============================
+# CurlingTrack Dashboard Enhancement
+# ==============================
+if mode == "Curling Track":
+    st.markdown("---")
+    st.subheader("Curling Track Analytics")
+
+    if st.button("Unbooked Slots (2023 vs 2024)"):
+        # --- Prepare Data ---
+        unbooked_2024 = {
+            "MON": ["22:00-23:00", "23:00-24:00"],
+            "TUE": ["12:00-13:00", "13:00-14:00", "18:00-19:00", "19:00-20:00", "22:00-23:00", "23:00-24:00"],
+            "WED": ["12:00-13:00", "19:00-20:00", "20:00-21:00", "21:00-22:00", "22:00-23:00", "23:00-24:00"],
+            "THU": ["18:00-19:00", "22:00-23:00", "23:00-24:00"],
+            "FRI": ["22:00-23:00", "23:00-24:00"]
+        }
+
+        unbooked_2023 = {
+            "MON": ["19:00-20:00", "20:00-21:00", "22:00-23:00", "23:00-24:00"],
+            "TUE": ["19:00-20:00", "21:00-22:00", "22:00-23:00"],
+            "WED": ["12:00-13:00", "13:00-14:00", "21:00-22:00", "23:00-24:00"],
+            "THU": ["20:00-21:00", "22:00-23:00", "23:00-24:00"],
+            "FRI": ["23:00-24:00"]
+        }
+
+        # Count unbooked slots per day
+        days = ["MON", "TUE", "WED", "THU", "FRI"]
+        unbooked_count_2023 = [len(unbooked_2023[d]) for d in days]
+        unbooked_count_2024 = [len(unbooked_2024[d]) for d in days]
+
+        # --- Plot Chart ---
+        x = np.arange(len(days))
+        width = 0.35
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        bars1 = ax.bar(x - width/2, unbooked_count_2023, width, label='2023 Unbooked', color='#F28B82', edgecolor='black')
+        bars2 = ax.bar(x + width/2, unbooked_count_2024, width, label='2024 Unbooked', color='#FBC02D', edgecolor='black')
+
+        # Add value labels on bars
+        for bar in bars1 + bars2:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2, height + 0.1, f'{int(height)}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+        # --- Chart Styling ---
+        ax.set_xlabel("Day of Week", fontsize=12, fontweight='bold')
+        ax.set_ylabel("Number of Unbooked Slots", fontsize=12, fontweight='bold')
+        ax.set_title("Unbooked Slots Comparison (2023 vs 2024)", fontsize=14, fontweight='bold', pad=15)
+        ax.set_xticks(x)
+        ax.set_xticklabels(days, fontsize=11)
+        ax.legend(loc='upper right', fontsize=10)
+        ax.grid(axis='y', linestyle='--', alpha=0.6)
+
+        # Aesthetic adjustments
+        fig.patch.set_facecolor('#fafafa')
+        ax.set_facecolor('#ffffff')
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+        st.pyplot(fig)
+
 
