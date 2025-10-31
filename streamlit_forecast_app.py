@@ -1305,3 +1305,78 @@ if mode == "Curling Track":
 
         st.pyplot(fig)
 
+# ==============================
+# CURLINGTRACK UNBOOKED SLOT COMPARISON (CAROUSEL)
+# ==============================
+if mode == "Curling Track":
+    # Initialize session state for carousel visibility
+    if "show_unbooked_carousel" not in st.session_state:
+        st.session_state.show_unbooked_carousel = False
+    
+    # Button in sidebar to show carousel
+    if st.sidebar.button("🕒 View Unbooked Slots (2023 vs 2024)"):
+        st.session_state.show_unbooked_carousel = True
+    
+    # Show carousel if enabled
+    if st.session_state.show_unbooked_carousel:
+        st.markdown("---")
+        st.markdown("## ❄ Curling Track — Unbooked Slot Comparison (2023 vs 2024)")
+
+        unbooked_2024 = {
+            "MON": ["22:00-23:00", "23:00-24:00"],
+            "TUE": ["12:00-13:00","13:00-14:00","18:00-19:00","19:00-20:00","22:00-23:00","23:00-24:00"],
+            "WED": ["12:00-13:00","19:00-20:00","20:00-21:00","21:00-22:00","22:00-23:00","23:00-24:00"],
+            "THU": ["18:00-19:00","22:00-23:00","23:00-24:00"],
+            "FRI": ["22:00-23:00","23:00-24:00"]
+        }
+
+        unbooked_2023 = {
+            "MON": ["19:00-20:00","20:00-21:00","22:00-23:00","23:00-24:00"],
+            "TUE": ["19:00-20:00","21:00-22:00","22:00-23:00"],
+            "WED": ["12:00-13:00","13:00-14:00","21:00-22:00","23:00-24:00"],
+            "THU": ["20:00-21:00","22:00-23:00","23:00-24:00"],
+            "FRI": ["23:00-24:00"]
+        }
+
+        days = list(unbooked_2024.keys())
+
+        # Carousel session state
+        if "curling_day_idx" not in st.session_state:
+            st.session_state.curling_day_idx = 0
+
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col1:
+            if st.button("⬅ Previous Day"):
+                st.session_state.curling_day_idx = (st.session_state.curling_day_idx - 1) % len(days)
+        with col3:
+            if st.button("Next Day ➡"):
+                st.session_state.curling_day_idx = (st.session_state.curling_day_idx + 1) % len(days)
+
+        # Current day selection
+        current_day = days[st.session_state.curling_day_idx]
+        slots_2024 = unbooked_2024[current_day]
+        slots_2023 = unbooked_2023[current_day]
+
+        # Display results cleanly
+        st.markdown(f"### {current_day} — Unbooked Slots Comparison")
+        
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown(f"####  2024 — {len(slots_2024)} Unbooked Slots")
+            st.success(", ".join(slots_2024))
+        with col_b:
+            st.markdown(f"####  2023 — {len(slots_2023)} Unbooked Slots")
+            st.info(", ".join(slots_2023))
+
+        # Styling for clean UI
+        st.markdown("""
+            <style>
+            .stButton > button {
+                background-color: #0072B5;
+                color: white;
+                border-radius: 10px;
+                font-weight: 600;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
