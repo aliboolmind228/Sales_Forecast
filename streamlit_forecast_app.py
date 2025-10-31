@@ -183,8 +183,8 @@ all_dates = sorted(forecast_items["createdAt"].dt.date.unique())
 st.title(" Sales Forecasting Dashboard")
 st.markdown("### November - December 2025 Forecast")
 
-# Mode selector: Products (default) or Curling Track
-mode = st.radio("Select view", ["Products", "Curling Track"], index=0, horizontal=True)
+# Mode selector: Products (default) or Curling Track or Deals
+mode = st.radio("Select view", ["Products", "Curling Track", "Deals"], index=0, horizontal=True)
 
 # Sidebar filters
 st.sidebar.header(" Filters")
@@ -214,6 +214,8 @@ if mode == "Products":
         default=all_products,
         help="Select one or more products"
     )
+elif mode == "Curling Track":
+    product_filter = []
 else:
     product_filter = []
 
@@ -223,6 +225,8 @@ if mode == "Products":
 
     # By default, use ALL variant IDs to ensure complete data
     variant_filter_ids = ALL_VARIANT_IDS  # Start with all 14 variants
+elif mode == "Curling Track":
+    variant_filter_ids = []
 else:
     variant_filter_ids = []
 
@@ -498,7 +502,7 @@ if mode == "Products":
             file_name=f"product_forecast_{start_date}_to_{end_date}.csv",
             mime="text/csv"
         )
-else:
+elif mode == "Curling Track":
     # Curling Track dashboard
     try:
         track_items = pd.read_csv("output_ml/track_forecast_items_nov_dec_2025.csv")
@@ -520,11 +524,18 @@ else:
     )
     selected_tracks = [inv_map.get(lbl, lbl) for lbl in selected_track_labels] if selected_track_labels else all_tracks
 
-    # Date filter (reuse existing date_range)
-    if len(date_range) == 2:
-        start_date, end_date = date_range
-    else:
-        start_date = end_date = date_range[0]
+    # Date filter (Curling Track): business days only (Mon–Fri)
+    business_dates = sorted([d.date() for d in track_items["slotDates"].dt.date.unique()])
+    # Ensure weekdays only
+    business_dates = [d for d in business_dates if pd.Timestamp(d).weekday() < 5]
+    if not business_dates:
+        st.warning("No business days available in data")
+        st.stop()
+    start_date, end_date = st.sidebar.select_slider(
+        "Select dates (Mon-Fri only)",
+        options=business_dates,
+        value=(business_dates[0], business_dates[-1])
+    )
 
     # Filter by date and ensure only weekdays (Mon-Fri)
     tdf = track_items[
@@ -628,14 +639,36 @@ else:
     )
     st.plotly_chart(fig_track, use_container_width=True)
 
-    # YoY comparison overall for tracks (2023=0 placeholder)
+    # YoY comparison overall for tracks - ALWAYS show FULL Nov-Dec totals (not filtered)
     try:
-        total_2025 = tdf_adj.groupby(tdf_adj["slotDates"].dt.date)["final_forecast"].sum().sum()
-        total_2024 = df24_total
-        # Use user-provided 2023 fallback if not computable from CSVs
+        # Load FULL 2025 forecast (all Nov-Dec weekdays)
+        total_2025_full = track_items[
+            (~track_items["slotDates"].dt.weekday.isin([5, 6])) &
+            (track_items["slotDates"].dt.month.isin([11, 12]))
+        ]
+        if selected_tracks:
+            total_2025_full = total_2025_full[total_2025_full["curlingtracks"].isin(selected_tracks)]
+        # Apply same scaling factor to full period
+        total_2025_full_adj = total_2025_full["final_forecast"].sum() * scale_factor_tracks
+        
+        # Load FULL 2024 actual (all Nov-Dec weekdays)
+        try:
+            df24_full = pd.read_csv("output_ml/track_actual_daily_totals_2024.csv")
+            df24_full["date_dt"] = pd.to_datetime(df24_full["date"])
+            df24_full = df24_full[
+                (~df24_full["date_dt"].dt.weekday.isin([5, 6])) &
+                (df24_full["date_dt"].dt.month.isin([11, 12]))
+            ]
+            if selected_tracks:
+                df24_full = df24_full[df24_full["curlingtracks"].isin(selected_tracks)]
+            total_2024_full = float(df24_full["total"].sum())
+        except Exception:
+            total_2024_full = 4680.0
+        
+        # 2023 full Nov-Dec total (fixed value)
         total_2023 = 2745.0
         years = ['2023', '2024', '2025']
-        totals = [total_2023, total_2024, total_2025]
+        totals = [total_2023, total_2024_full, total_2025_full_adj]
         colors_list = [COLORS['green'], COLORS['orange'], COLORS['blue']]
         fig_yoy = go.Figure()
         fig_yoy.add_trace(go.Bar(x=years, y=totals, marker=dict(color=colors_list, line=dict(color='#2c3e50', width=2), pattern=dict(shape=['','','/'], solidity=[0,0,0.3])), text=[f"€{totals[0]:,.0f}", f"€{totals[1]:,.0f}", f"€{totals[2]:,.0f}"], textposition='outside'))
@@ -666,7 +699,7 @@ else:
             ),
             margin=dict(t=100, b=60, l=70, r=40)
         )
-        st.plotly_chart(fig_yoy, use_container_width=True)
+    st.plotly_chart(fig_yoy, use_container_width=True)
     except Exception:
         pass
     
@@ -700,6 +733,100 @@ else:
         file_name=f"track_forecast_{start_date}_to_{end_date}.csv",
         mime="text/csv"
     )
+elif mode == "Deals":
+    # Deals dashboard
+    try:
+        deal_items = pd.read_csv("output_ml/deal_forecast_items_nov_dec_2025.csv")
+        deal_items["slotDates"] = pd.to_datetime(deal_items["slotDates"])    
+    except Exception:
+        st.error("❌ Deals forecast not found. Run deal_ipynb to generate CSVs in output_ml/.")
+        st.stop()
+
+    # Sidebar: deal_variant_key filter
+    st.sidebar.subheader(" Deal Variants")
+    all_deals = sorted(deal_items["deal_variant_key"].unique().tolist())
+    selected_deals = st.sidebar.multiselect(
+        "Select deal_variant(s)",
+        options=all_deals,
+        default=all_deals
+    )
+
+    # Date filter (Mon–Fri only) via slider
+    business_dates = sorted([d.date() for d in deal_items["slotDates"].dt.date.unique() if pd.Timestamp(d).weekday() < 5])
+    if not business_dates:
+        st.warning("No business days available in deals data")
+        st.stop()
+    start_date, end_date = st.sidebar.select_slider(
+        "Select dates (Mon-Fri only)",
+        options=business_dates,
+        value=(business_dates[0], business_dates[-1])
+    )
+
+    # Filter by date and weekday
+    ddf = deal_items[
+        (deal_items["slotDates"].dt.date >= start_date) &
+        (deal_items["slotDates"].dt.date <= end_date) &
+        (~deal_items["slotDates"].dt.weekday.isin([5, 6]))
+    ]
+    if selected_deals:
+        ddf = ddf[ddf["deal_variant_key"].isin(selected_deals)]
+
+    # Metrics
+    total_forecast = ddf["Final_Forecast"].sum()
+    num_deals = ddf["deal_variant_key"].nunique()
+    num_days = ddf["slotDates"].dt.date.nunique()
+    avg_daily = total_forecast / num_days if num_days > 0 else 0
+
+    # 2024 actual constant for Nov–Dec Mon–Fri
+    total_2024 = 18640.95
+    growth_vs_2024 = ((total_forecast / total_2024) - 1) if total_2024 > 0 else 0
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Forecast", f"€{total_forecast:,.2f}")
+    with col2:
+        st.metric("vs 2024 Actual", f"€{total_2024:,.2f}", f"{growth_vs_2024:+.1%}")
+    with col3:
+        st.metric("Deal_variant", f"{num_deals}")
+    with col4:
+        st.metric("Days", f"{num_days}")
+
+    # YoY constant bar (not affected by filters)
+    years = ['2023', '2024', '2025']
+    totals = [11089.75, 18640.95, 24575.32]
+    colors_list = [COLORS['green'], COLORS['orange'], COLORS['blue']]
+    fig_yoy = go.Figure()
+    fig_yoy.add_trace(go.Bar(x=years, y=totals, marker=dict(color=colors_list, line=dict(color='#2c3e50', width=2), pattern=dict(shape=['','','/'], solidity=[0,0,0.3])), text=[f"€{totals[0]:,.0f}", f"€{totals[1]:,.0f}", f"€{totals[2]:,.0f}"], textposition='outside'))
+    fig_yoy.update_layout(title=dict(text="Year-over-Year Revenue Comparison (Deals)", font=dict(size=20,color='#2c3e50',family='Arial',weight='bold')), xaxis_title="Year", yaxis_title="Total (€)", height=450, plot_bgcolor='#ffffff', paper_bgcolor='#f8f9fa', showlegend=False, yaxis=dict(tickformat='€,.0f'))
+    st.plotly_chart(fig_yoy, use_container_width=True)
+
+    # Dynamic chart by selected filters: Forecast by deal_variant_key
+    st.subheader(" Forecast by Deal Variant")
+    agg = ddf.groupby("deal_variant_key")["Final_Forecast"].sum().reset_index().sort_values("Final_Forecast")
+    fig_deals = go.Figure()
+    fig_deals.add_trace(go.Bar(
+        y=agg["deal_variant_key"],
+        x=agg["Final_Forecast"],
+        orientation='h',
+        marker=dict(color=agg["Final_Forecast"], colorscale=[[0, COLORS['skyblue']], [1, COLORS['blue']]], showscale=False),
+        text=agg["Final_Forecast"].apply(lambda x: f"€{x:,.0f}"),
+        textposition='outside',
+        textfont=dict(size=13, color='#2c3e50', weight=700)
+    ))
+    fig_deals.update_layout(title=dict(text="Deal Variant Breakdown", font=dict(size=18, color='#2c3e50', weight=700)), xaxis_title="Forecast Revenue (€)", yaxis_title="", height=450, plot_bgcolor='#ffffff', paper_bgcolor='#f8f9fa', showlegend=False, xaxis=dict(showgrid=True, gridcolor='#e1e8ed', gridwidth=1), yaxis=dict(showgrid=False, tickfont=dict(size=12, weight=600)), margin=dict(t=60, b=60, l=180, r=80))
+    st.plotly_chart(fig_deals, use_container_width=True)
+
+    # Detailed table for Deals
+    st.subheader(" Detailed Forecast Data")
+    table_agg = ddf.copy()
+    table_agg["Date"] = table_agg["slotDates"].dt.date
+    table_agg = table_agg.groupby(["Date", "deal_variant_key"], as_index=False)["Final_Forecast"].sum()
+    table_agg = table_agg.rename(columns={"deal_variant_key": "Deal Variant", "Final_Forecast": "Forecast (€)"})
+    table_agg["Forecast (€)"] = table_agg["Forecast (€)"].round(2)
+    table_agg = table_agg.sort_values(["Date", "Deal Variant"])
+    st.dataframe(table_agg, use_container_width=True, height=400)
+    csv = table_agg.to_csv(index=False).encode('utf-8')
+    st.download_button(label=" Download Forecast CSV", data=csv, file_name=f"deals_forecast_{start_date}_to_{end_date}.csv", mime="text/csv")
 
 # Footer
 st.markdown("---")
