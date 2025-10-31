@@ -1104,7 +1104,7 @@ if mode == "Curling Track":
                     f"""
                     <div style='background-color:#F0F9FF;padding:15px;margin:8px;border-radius:15px;
                     box-shadow:0px 2px 6px rgba(0,0,0,0.1);'>
-                    <h5 style='color:#0078D7;'>💡 Tip {i+1}</h5>
+                    <h5 style='color:#0078D7;'> Tip {i+1}</h5>
                     <p style='color:#333;font-size:15px;'>{rec}</p>
                     </div>
                     """,
@@ -1157,7 +1157,7 @@ if mode == "Deals":
                     f"""
                     <div style='background-color:#FFF8E1;padding:15px;margin:8px;border-radius:15px;
                     box-shadow:0px 2px 6px rgba(0,0,0,0.1);'>
-                    <h5 style='color:#E65100;'>💡 Suggestion {i+1}</h5>
+                    <h5 style='color:#E65100;'> Suggestion {i+1}</h5>
                     <p style='color:#333;font-size:15px;'>{rec}</p>
                     </div>
                     """,
