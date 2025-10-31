@@ -1110,3 +1110,56 @@ if mode == "Curling Track":
                     """,
                     unsafe_allow_html=True
                 )
+
+# =======================
+# Deals Recommendation Assistant
+# =======================
+if mode == "Deals":
+    st.markdown("---")
+    st.subheader(" Deals Recommendation Assistant")
+
+    # Hardcoded Recommendations for Low-Selling Variants
+    deal_recommendations = [
+        # Variant: "5 tickets"
+        "**'5 Tickets Pack'** → Offer a 'Buy 4 Get 1 Free' promotion to attract small groups or families.",
+        " Introduce **corporate or school group bundles** linked with the 5-ticket variant for weekdays.",
+        " Create a **holiday gift pack** version of the 5-ticket deal (valid through Dec 30).",
+        " Display this deal on the homepage banner with countdown timer: 'Limited 5-Ticket Winter Offer'.",
+
+        # Variant: "alle dagen geldig (21 t/m 30 december)"
+        " Promote the **'21–30 December' valid deal** as an exclusive Christmas Holiday pass with festive visuals.",
+        " Add this variant to **holiday campaigns**, bundle it with hot chocolate or skating rental coupons.",
+        " Offer **early-bird Christmas pricing** for this variant to increase pre-bookings.",
+        " Collaborate with nearby holiday markets or events to cross-promote this pass.",
+
+        # Variant: "niet geldig op woensdag"
+        " Rebrand 'Not valid on Wednesday' variant as a **budget-friendly weekday pass** with 10% off.",
+        " Highlight this variant in **email newsletters** as an affordable option for flexible visitors.",
+        " Pair this variant with food & drink vouchers to make it more attractive for group buyers.",
+        " Run **flash sales on Tuesdays & Thursdays** promoting this variant for quick conversions.",
+
+        # Variant: "geldig op woensdag, zaterdag & zondag"
+        " Offer **Weekend Pass Upgrade** for buyers of this variant — add extra weekday validity for +€3.",
+        " Add **social proof banners** ('Most Booked on Saturdays!') to increase trust for this deal.",
+        " Promote via **Instagram reels** or TikTok using user-generated weekend content.",
+        " Include this variant in **Weekend Fun Combos** (Deal + Food Stall Coupon).",
+    ]
+
+    if st.button("Deals Recommendations"):
+        random_deal_recs = random.sample(deal_recommendations, k=4)
+
+        st.markdown("#### Smart Suggestions to Boost Low-Performing Deals")
+
+        cols = st.columns(2)
+        for i, rec in enumerate(random_deal_recs):
+            with cols[i % 2]:
+                st.markdown(
+                    f"""
+                    <div style='background-color:#FFF8E1;padding:15px;margin:8px;border-radius:15px;
+                    box-shadow:0px 2px 6px rgba(0,0,0,0.1);'>
+                    <h5 style='color:#E65100;'>💡 Suggestion {i+1}</h5>
+                    <p style='color:#333;font-size:15px;'>{rec}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
