@@ -525,9 +525,8 @@ elif mode == "Curling Track":
     selected_tracks = [inv_map.get(lbl, lbl) for lbl in selected_track_labels] if selected_track_labels else all_tracks
 
     # Date filter (Curling Track): business days only (Mon–Fri)
-    business_dates = sorted([d.date() for d in track_items["slotDates"].dt.date.unique()])
-    # Ensure weekdays only
-    business_dates = [d for d in business_dates if pd.Timestamp(d).weekday() < 5]
+    unique_dates = track_items["slotDates"].dt.date.unique()
+    business_dates = sorted([d for d in unique_dates if pd.Timestamp(d).weekday() < 5])
     if not business_dates:
         st.warning("No business days available in data")
         st.stop()
