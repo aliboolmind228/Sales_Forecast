@@ -752,7 +752,8 @@ elif mode == "Deals":
     )
 
     # Date filter (Mon–Fri only) via slider
-    business_dates = sorted([d.date() for d in deal_items["slotDates"].dt.date.unique() if pd.Timestamp(d).weekday() < 5])
+    unique_dates = deal_items["slotDates"].dt.date.unique()
+    business_dates = sorted([d for d in unique_dates if pd.Timestamp(d).weekday() < 5])
     if not business_dates:
         st.warning("No business days available in deals data")
         st.stop()
