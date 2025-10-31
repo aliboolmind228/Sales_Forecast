@@ -699,7 +699,7 @@ elif mode == "Curling Track":
             ),
             margin=dict(t=100, b=60, l=70, r=40)
         )
-    st.plotly_chart(fig_yoy, use_container_width=True)
+        st.plotly_chart(fig_yoy, use_container_width=True)
     except Exception:
         pass
     
