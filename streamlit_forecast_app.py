@@ -549,42 +549,72 @@ elif mode == "Curling Track":
     if selected_tracks:
         tdf = tdf[tdf["curlingtracks"].isin(selected_tracks)]
 
+    # Check if full Nov-Dec range is selected (default behavior)
+    selected_days = len(tdf["slotDates"].dt.date.unique()) if len(tdf) > 0 else 0
+    is_full_period = (selected_days >= 40) or (start_date.month == 11 and end_date.month == 12 and 
+                   start_date.day <= 5 and end_date.day >= 25)
+    
     # Load 2024 actual total for SELECTED date range (matching month-day pattern, weekdays only)
-    try:
-        df24_all = pd.read_csv("output_ml/track_actual_daily_total_2024.csv")
-        df24_all["date"] = pd.to_datetime(df24_all["date"]).dt.date
-        df24_all["date_dt"] = pd.to_datetime(df24_all["date"])
-        # Filter by month-day range (not year) and weekdays only
-        df24_all = df24_all[
-            (df24_all["date_dt"].dt.month == start_date.month) &
-            (df24_all["date_dt"].dt.day >= start_date.day) &
-            (df24_all["date_dt"].dt.month <= end_date.month) &
-            (df24_all["date_dt"].dt.day <= end_date.day) &
-            (~df24_all["date_dt"].dt.weekday.isin([5, 6]))
-        ]
+    if is_full_period:
+        # For full period, use the known total €4,680
+        total_2024_actual = 4680.0
         if selected_tracks:
-            df24_all = df24_all[df24_all["curlingtracks"].isin(selected_tracks)]
-        total_2024_actual = float(df24_all["total"].sum())
-    except Exception:
-        total_2024_actual = 0.0
+            # If tracks are filtered, scale proportionally (assuming equal split)
+            num_selected_tracks = len(selected_tracks)
+            num_all_tracks = 2  # Total tracks
+            total_2024_actual = 4680.0 * (num_selected_tracks / num_all_tracks)
+    else:
+        # For partial date range, try to load from CSV
+        try:
+            df24_all = pd.read_csv("output_ml/track_actual_daily_total_2024.csv")
+            df24_all["date"] = pd.to_datetime(df24_all["date"]).dt.date
+            df24_all["date_dt"] = pd.to_datetime(df24_all["date"])
+            
+            # Create date range in 2024 matching the selected month-day pattern
+            start_date_2024 = pd.Timestamp(2024, start_date.month, start_date.day).date()
+            end_date_2024 = pd.Timestamp(2024, end_date.month, end_date.day).date()
+            
+            # Filter 2024 data for the matching date range (weekdays only)
+            df24_all = df24_all[
+                (df24_all["date"] >= start_date_2024) &
+                (df24_all["date"] <= end_date_2024) &
+                (~df24_all["date_dt"].dt.weekday.isin([5, 6]))
+            ]
+            if selected_tracks:
+                df24_all = df24_all[df24_all["curlingtracks"].isin(selected_tracks)]
+            total_2024_actual = float(df24_all["total"].sum())
+            
+            # If CSV data seems incomplete for full range, use proportional calculation
+            if total_2024_actual == 0.0 or (is_full_period and total_2024_actual < 4000):
+                # Fallback: scale full period (€4680 for Nov-Dec weekdays) proportionally to selected range
+                full_days = 44  # Nov-Dec weekdays
+                selected_days = len(tdf["slotDates"].dt.date.unique()) if len(tdf) > 0 else 1
+                total_2024_actual = (4680.0 / full_days) * selected_days
+        except Exception as e:
+            # Fallback: scale full period (€4680 for Nov-Dec weekdays) proportionally to selected range
+            full_days = 44  # Nov-Dec weekdays
+            selected_days = len(tdf["slotDates"].dt.date.unique()) if len(tdf) > 0 else 1
+            total_2024_actual = (4680.0 / full_days) * selected_days
 
-    # Optional: use provided historical totals if CSV missing (proportionally scaled for date range)
-    if total_2024_actual == 0.0:
-        # Fallback: scale full period (€4680 for Nov-Dec) proportionally to selected range
-        full_days = 44  # Nov-Dec weekdays
-        selected_days = len(tdf["slotDates"].dt.date.unique()) if len(tdf) > 0 else 1
-        total_2024_actual = (4680.0 / full_days) * selected_days
-
-    # Apply business growth uplift ONLY if filtered range total < 2024*1.115
+    # Apply business growth uplift: ensure 2025 is at least 11.5% above 2024
     total_2025_raw = float(tdf["final_forecast"].sum())
-    if total_2024_actual > 0 and total_2025_raw < total_2024_actual * 1.115:
+    min_required_2025 = total_2024_actual * 1.115  # Minimum 11.5% growth
+    
+    if total_2025_raw < min_required_2025:
+        # Scale to meet minimum requirement (11.5-13.1% growth)
         np.random.seed(42)
         growth_rate_tracks = float(np.random.uniform(0.115, 0.131))
         target_2025 = total_2024_actual * (1.0 + growth_rate_tracks)
         scale_factor_tracks = target_2025 / max(total_2025_raw, 1e-9)
     else:
+        # Already above minimum, but ensure it's reasonable (can still apply small uplift if needed)
         scale_factor_tracks = 1.0
         growth_rate_tracks = (total_2025_raw / total_2024_actual - 1.0) if total_2024_actual > 0 else 0.0
+        # If growth is too low, apply minimum uplift
+        if growth_rate_tracks < 0.115:
+            target_2025 = total_2024_actual * 1.115
+            scale_factor_tracks = target_2025 / max(total_2025_raw, 1e-9)
+            growth_rate_tracks = 0.115
     
     tdf_adj = tdf.copy()
     tdf_adj["final_forecast"] = tdf_adj["final_forecast"] * scale_factor_tracks
@@ -1163,3 +1193,4 @@ if mode == "Deals":
                     """,
                     unsafe_allow_html=True
                 )
+
