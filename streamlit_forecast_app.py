@@ -194,6 +194,9 @@ st.sidebar.info("**How to use:**\n"
                 "• Choose product(s) or tracks\n"
                 "• Pick specific variant(s) when in Products view")
 
+# 2-Week Comparison button (available for all modes)
+show_2week_comparison = st.sidebar.button("📈 2_Week Comparison", help="Compare first 2 weeks of December (Dec 1-14, Mon-Fri) across 2023, 2024, and 2025 forecast")
+
 # Date selection
 st.sidebar.subheader(" Date Range")
 min_date, max_date = min(all_dates), max(all_dates)
@@ -837,3 +840,144 @@ st.markdown("""
     <p style='font-size: 0.85rem; color: #95a5a6;'>Color-blind friendly design ● Accessible interface</p>
 </div>
 """, unsafe_allow_html=True)
+
+# ============================================================================
+# 2-WEEK COMPARISON FEATURE (appended at end)
+# ============================================================================
+if show_2week_comparison:
+    st.markdown("---")
+    st.subheader("2-Week Revenue Comparison (Mon–Fri)")
+    
+    # Define date range: Dec 1-14, weekdays only (Mon-Fri)
+    dec_2025_start = pd.Timestamp("2025-12-01")
+    dec_2025_end = pd.Timestamp("2025-12-14")
+    dec_dates_2025 = pd.date_range(dec_2025_start, dec_2025_end, freq="B")  # Business days only
+    
+    # Historical constants (2-week Dec totals, Mon-Fri)
+    HIST_2WEEK = {
+        "Products": {"2023": 6469.24, "2024": 7150.60},
+        "Curling Track": {"2023": 1400.0, "2024": 1320.0},
+        "Deals": {"2023": 5197.75, "2024": 4270.64}
+    }
+    
+    try:
+        if mode == "Products":
+            # Load product forecast CSV
+            df_2025 = pd.read_csv("output_ml/forecast_items_nov_dec_2025.csv")
+            df_2025["createdAt"] = pd.to_datetime(df_2025["createdAt"])
+            # Filter Dec 1-14, 2025, weekdays only
+            df_2week = df_2025[
+                (df_2025["createdAt"].dt.date >= dec_2025_start.date()) &
+                (df_2025["createdAt"].dt.date <= dec_2025_end.date()) &
+                (~df_2025["createdAt"].dt.weekday.isin([5, 6])) &
+                (df_2025["product_core"] != "UNKNOWN")
+            ]
+            total_2025 = float(df_2week["forecast"].sum())
+            hist_2023 = HIST_2WEEK["Products"]["2023"]
+            hist_2024 = HIST_2WEEK["Products"]["2024"]
+            chart_title = "2-Week Revenue Comparison (Products): 2023 vs 2024 vs 2025 (Forecast)"
+            
+        elif mode == "Curling Track":
+            # Load track forecast CSV
+            df_2025 = pd.read_csv("output_ml/track_forecast_items_nov_dec_2025.csv")
+            df_2025["slotDates"] = pd.to_datetime(df_2025["slotDates"])
+            # Filter Dec 1-14, 2025, weekdays only
+            df_2week = df_2025[
+                (df_2025["slotDates"].dt.date >= dec_2025_start.date()) &
+                (df_2025["slotDates"].dt.date <= dec_2025_end.date()) &
+                (~df_2025["slotDates"].dt.weekday.isin([5, 6]))
+            ]
+            total_2025 = float(df_2week["final_forecast"].sum())
+            hist_2023 = HIST_2WEEK["Curling Track"]["2023"]
+            hist_2024 = HIST_2WEEK["Curling Track"]["2024"]
+            chart_title = "2-Week Revenue Comparison (Curling Track): 2023 vs 2024 vs 2025 (Forecast)"
+            
+        elif mode == "Deals":
+            # Load deals forecast CSV
+            df_2025 = pd.read_csv("output_ml/deal_forecast_items_nov_dec_2025.csv")
+            df_2025["slotDates"] = pd.to_datetime(df_2025["slotDates"])
+            # Filter Dec 1-14, 2025, weekdays only
+            df_2week = df_2025[
+                (df_2025["slotDates"].dt.date >= dec_2025_start.date()) &
+                (df_2025["slotDates"].dt.date <= dec_2025_end.date()) &
+                (~df_2025["slotDates"].dt.weekday.isin([5, 6]))
+            ]
+            total_2025 = float(df_2week["Final_Forecast"].sum())
+            hist_2023 = HIST_2WEEK["Deals"]["2023"]
+            hist_2024 = HIST_2WEEK["Deals"]["2024"]
+            chart_title = "2-Week Revenue Comparison (Deals): 2023 vs 2024 vs 2025 (Forecast)"
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+        
+        # Create comparison dataframe
+        df_comp = pd.DataFrame({
+            "Year": [2023, 2024, 2025],
+            "Total_Revenue": [hist_2023, hist_2024, total_2025]
+        })
+        
+        # Modern Plotly bar chart with rounded corners and gradient
+        fig_2week = go.Figure()
+        
+        # Color gradient (pastel blue tones)
+        colors_gradient = ['#8ECAE6', '#219EBC', '#023047']  # Light to dark blue
+        
+        fig_2week.add_trace(go.Bar(
+            x=df_comp["Year"].astype(str),
+            y=df_comp["Total_Revenue"],
+            marker=dict(
+                color=colors_gradient,
+                line=dict(color='#2c3e50', width=2),
+                cornerradius="8px"
+            ),
+            text=df_comp["Total_Revenue"].apply(lambda x: f"€{x:,.2f}"),
+            textposition='outside',
+            textfont=dict(size=14, color='#2c3e50', family='Arial', weight=700),
+            hovertemplate='<b>%{x}</b><br>Total Revenue: €%{y:,.2f}<extra></extra>'
+        ))
+        
+        fig_2week.update_layout(
+            title=dict(
+                text=chart_title,
+                font=dict(size=20, color='#2c3e50', family='Arial', weight='bold')
+            ),
+            xaxis_title="Year",
+            yaxis_title="Total Revenue (€)",
+            height=480,
+            plot_bgcolor='#ffffff',
+            paper_bgcolor='#f8f9fa',
+            showlegend=False,
+            xaxis=dict(
+                showgrid=False,
+                tickfont=dict(size=14, color='#2c3e50', family='Arial'),
+                zeroline=False
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='#d3d9de',
+                gridwidth=1,
+                tickfont=dict(size=12, color='#2c3e50'),
+                tickformat='€,.0f',
+                zeroline=False,
+                range=[0, max(df_comp["Total_Revenue"]) * 1.2]
+            ),
+            margin=dict(t=100, b=60, l=70, r=40)
+        )
+        
+        st.plotly_chart(fig_2week, use_container_width=True)
+        
+        # Display summary metrics
+        growth_2023_2024 = ((hist_2024 / hist_2023) - 1) * 100 if hist_2023 > 0 else 0
+        growth_2024_2025 = ((total_2025 / hist_2024) - 1) * 100 if hist_2024 > 0 else 0
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("2023 Total", f"€{hist_2023:,.2f}")
+        with col2:
+            st.metric("2024 Total", f"€{hist_2024:,.2f}", f"{growth_2023_2024:+.1f}%")
+        with col3:
+            st.metric("2025 Forecast", f"€{total_2025:,.2f}", f"{growth_2024_2025:+.1f}%")
+            
+    except FileNotFoundError as e:
+        st.error(f"❌ Forecast CSV not found for {mode} mode. Please ensure the forecast CSV exists in output_ml/.")
+    except Exception as e:
+        st.error(f"❌ Error generating 2-week comparison: {str(e)}")
