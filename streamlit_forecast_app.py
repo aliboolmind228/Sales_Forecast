@@ -156,7 +156,7 @@ def get_variants_for_product(product):
 def load_forecast_data():
     """Load forecast data"""
     try:
-        forecast_items = pd.read_csv("output_ml/forecast_items_nov_dec_2025.csv")
+        forecast_items = pd.read_csv("output_ml/forecast_item_nov_dec_2025.csv")
         forecast_items["createdAt"] = pd.to_datetime(forecast_items["createdAt"])
         forecast_items["variant_id"] = forecast_items["variant_id"].astype(str)
         
@@ -322,7 +322,7 @@ if mode == "Products":
             growth_vs_2024 = 0
         
         # Key metrics with enhanced visibility
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         
         with col1:
             st.metric("Total Forecast", f"€{total_forecast:,.2f}")
@@ -335,6 +335,10 @@ if mode == "Products":
             st.metric("Products", num_products)
         with col4:
             st.metric("Days", num_days)
+        with col5:
+            st.metric("2024_orders", 1610)
+        with col6:
+            st.metric("2023_orders", 1287)
         
         st.markdown("---")
         
@@ -382,6 +386,7 @@ if mode == "Products":
                 growth_2024_2025 = ((total_2025_calc / total_2024_calc) - 1) * 100 if total_2024_calc > 0 else 0
                 
                 # Create year-over-year comparison chart
+                # Use constant totals (independent of selected date range)
                 years = ['2023', '2024', '2025']
                 totals = [29462.42, 33869.54, 40621.89]
                 growth_2023_2024 = ((totals[1] / totals[0]) - 1) * 100 if totals[0] > 0 else 0
@@ -402,9 +407,9 @@ if mode == "Products":
                         )
                     ),
                     text=[
-                        f'€{total_2023_calc:,.0f}',
-                        f'€{total_2024_calc:,.0f}<br>+{growth_2023_2024:.1f}%',
-                        f'€{total_2025_calc:,.0f}<br>+{growth_2024_2025:.1f}%'
+                        f'€{totals[0]:,.0f}',
+                        f'€{totals[1]:,.0f}<br>+{growth_2023_2024:.1f}%',
+                        f'€{totals[2]:,.0f}<br>+{growth_2024_2025:.1f}%'
                     ],
                     textposition='outside',
                     textfont=dict(size=14, color='#2c3e50', family='Arial Black'),
@@ -631,7 +636,7 @@ elif mode == "Curling Track":
     df24_total = total_2024_actual
     growth_vs_2024 = ((total_forecast / df24_total) - 1) if df24_total > 0 else 0
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         st.metric("Total Forecast", f"€{total_forecast:,.2f}")
     with col2:
@@ -643,6 +648,10 @@ elif mode == "Curling Track":
         st.metric("Tracks", f"{num_tracks}")
     with col4:
         st.metric("Days", f"{num_days}")
+    with col5:
+        st.metric("2024_orders", 101)
+    with col6:
+        st.metric("2023_orders", 88)
 
     st.subheader(" Forecast by Track")
     agg = tdf_adj.groupby("curlingtracks")["final_forecast"].sum().reset_index().sort_values("final_forecast")
@@ -868,7 +877,7 @@ elif mode == "Deals":
     total_2024 = 18640.95
     growth_vs_2024 = ((total_forecast / total_2024) - 1) if total_2024 > 0 else 0
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         st.metric("Total Forecast", f"€{total_forecast:,.2f}")
     with col2:
@@ -877,6 +886,10 @@ elif mode == "Deals":
         st.metric("Deal_variant", f"{num_deals}")
     with col4:
         st.metric("Days", f"{num_days}")
+    with col5:
+        st.metric("2024_orders", 380)
+    with col6:
+        st.metric("2023_orders", 190)
 
     # YoY constant bar (not affected by filters)
     years = ['2023', '2024', '2025']
@@ -916,14 +929,7 @@ elif mode == "Deals":
     st.download_button(label=" Download Forecast CSV", data=csv, file_name=f"deals_forecast_{start_date}_to_{end_date}.csv", mime="text/csv")
 
 # Footer
-# st.markdown("---")
-# st.markdown("""
-# <div style='text-align: center; color: #7f8c8d; padding: 20px;'>
-#     <p style='font-size: 1.1rem; font-weight: 600; color: #2c3e50;'><strong>Sales Forecasting Dashboard</strong></p>
-#     <p style='font-size: 0.95rem;'>Powered by Machine Learning | Stacking Ensemble Model</p>
-#     <p style='font-size: 0.85rem; color: #95a5a6;'>Color-blind friendly design ● Accessible interface</p>
-# </div>
-# """, unsafe_allow_html=True)
+
 
 # ============================================================================
 # 2-WEEK COMPARISON FEATURE (appended at end)
@@ -947,7 +953,7 @@ if show_2week_comparison:
     try:
         if mode == "Products":
             # Load product forecast CSV
-            df_2025 = pd.read_csv("output_ml/forecast_items_nov_dec_2025.csv")
+            df_2025 = pd.read_csv("output_ml/forecast_item_nov_dec_2025.csv")
             df_2025["createdAt"] = pd.to_datetime(df_2025["createdAt"])
             # Filter Dec 1-14, 2025, weekdays only
             df_2week = df_2025[
@@ -1142,7 +1148,7 @@ if mode == "Products":
                 )
         
         st.markdown("---")
-        st.info(" Click the button again to view new recommendation combinations. Keeps insights fresh and dynamic!")
+        st.info(" Click the button again to view new recommendation.")
 
 # =======================
 # Curling Track Recommendation Assistant
