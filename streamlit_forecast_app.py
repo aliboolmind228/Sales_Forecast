@@ -234,9 +234,8 @@ mode = st.radio("Select view", ["Products", "Curling Track", "Deals"], index=0, 
 st.sidebar.header(" Filters")
 
 st.sidebar.info("**How to use:**\n"
-                "• Select date range (Mon-Fri only)\n"
-                "• Choose product(s) or tracks\n"
-                "• Pick specific variant(s) when in Products view")
+                "• Select date range\n"
+                "• Choose product(s) or tracks or Deals")
 
 # 2-Week Comparison button (available for all modes)
 show_2week_comparison = st.sidebar.button("📈 2_Week Comparison", help="Compare first 2 weeks of December (Dec 1-14, Mon-Fri) across 2023, 2024, and 2025 forecast")
