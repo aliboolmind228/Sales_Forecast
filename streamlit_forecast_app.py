@@ -154,21 +154,56 @@ def get_variants_for_product(product):
 
 @st.cache_data
 def load_forecast_data():
-    """Load forecast data"""
+    """Load product forecast data robustly (Streamlit Cloud friendly)."""
     try:
-        forecast_items = pd.read_csv("output_ml/forecast_item_nov_dec_2025.csv")
-        forecast_items["createdAt"] = pd.to_datetime(forecast_items["createdAt"])
-        forecast_items["variant_id"] = forecast_items["variant_id"].astype(str)
-        
-        if "forecast" not in forecast_items.columns:
-            st.error("❌ Forecast predictions not found.")
+        import os
+        from pathlib import Path
+
+        # Candidate paths (relative to CWD and app dir)
+        app_dir = Path(__file__).parent.resolve()
+        candidates = [
+            Path("output_ml/forecast_item_nov_dec_2025.csv"),
+            app_dir / "output_ml/forecast_item_nov_dec_2025.csv",
+            Path("forecast_item_nov_dec_2025.csv"),
+        ]
+
+        forecast_path = None
+        for c in candidates:
+            if c.exists():
+                forecast_path = c
+                break
+
+        if forecast_path is None:
+            # Extra diagnostics to help on Streamlit Cloud
+            out_dir = app_dir / "output_ml"
+            listing = []
+            if out_dir.exists():
+                listing = sorted([p.name for p in out_dir.iterdir() if p.is_file()])
+            st.error("❌ Forecast data not found.")
             st.info("Run: python generate_forecast_predictions.py")
+            st.caption(f"Working directory: {Path.cwd()} | App dir: {app_dir}")
+            st.caption(f"Checked: {[str(p) for p in candidates]}")
+            st.caption(f"output_ml listing: {listing}")
             st.stop()
-        
-        return forecast_items
-    except FileNotFoundError:
-        st.error("❌ Forecast data not found.")
-        st.info("Run: python generate_forecast_predictions.py")
+
+        df = pd.read_csv(forecast_path)
+        # Expected columns
+        if "createdAt" in df.columns:
+            df["createdAt"] = pd.to_datetime(df["createdAt"])  # products file
+        if "variant_id" in df.columns:
+            df["variant_id"] = df["variant_id"].astype(str)
+
+        if "forecast" not in df.columns:
+            st.error("❌ Forecast predictions not found (missing 'forecast' column).")
+            st.info("Run: python generate_forecast_predictions.py")
+            st.caption(f"Loaded file: {forecast_path}")
+            st.caption(f"Columns: {list(df.columns)}")
+            st.stop()
+
+        return df
+    except Exception as ex:
+        st.error("❌ Failed to load forecast data.")
+        st.caption(str(ex))
         st.stop()
 
 # Load data
