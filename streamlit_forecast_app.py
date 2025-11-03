@@ -1203,7 +1203,6 @@ if mode == "Products":
                 )
         
         st.markdown("---")
-        st.info(" Click the button again to view new recommendation.")
 
 # =======================
 # Curling Track Recommendation Assistant
