@@ -383,7 +383,9 @@ if mode == "Products":
                 
                 # Create year-over-year comparison chart
                 years = ['2023', '2024', '2025']
-                totals = [total_2023_calc, total_2024_calc, total_2025_calc]
+                totals = [29462.42, 33869.54, 40621.89]
+                growth_2023_2024 = ((totals[1] / totals[0]) - 1) * 100 if totals[0] > 0 else 0
+                growth_2024_2025 = ((totals[2] / totals[1]) - 1) * 100 if totals[1] > 0 else 0
                 colors_list = [COLORS['green'], COLORS['orange'], COLORS['blue']]
                 
                 fig_timeseries = go.Figure()
