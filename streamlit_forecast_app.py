@@ -11,6 +11,7 @@ from joblib import load
 import os
 import random
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 # Page config
 st.set_page_config(
@@ -162,8 +163,14 @@ def load_forecast_data():
         # Candidate paths (relative to CWD and app dir)
         app_dir = Path(__file__).parent.resolve()
         candidates = [
+            # plural first (as seen on Streamlit Cloud listing)
+            Path("output_ml/forecast_items_nov_dec_2025.csv"),
+            app_dir / "output_ml/forecast_items_nov_dec_2025.csv",
+            # singular variants
             Path("output_ml/forecast_item_nov_dec_2025.csv"),
             app_dir / "output_ml/forecast_item_nov_dec_2025.csv",
+            # root fallbacks
+            Path("forecast_items_nov_dec_2025.csv"),
             Path("forecast_item_nov_dec_2025.csv"),
         ]
 
@@ -987,8 +994,21 @@ if show_2week_comparison:
     
     try:
         if mode == "Products":
-            # Load product forecast CSV
-            df_2025 = pd.read_csv("output_ml/forecast_item_nov_dec_2025.csv")
+            # Load product forecast CSV (try plural then singular)
+            from pathlib import Path
+            cand_paths = [
+                Path("output_ml/forecast_items_nov_dec_2025.csv"),
+                Path("output_ml/forecast_item_nov_dec_2025.csv"),
+                Path("forecast_items_nov_dec_2025.csv"),
+                Path("forecast_item_nov_dec_2025.csv"),
+            ]
+            df_2025 = None
+            for p in cand_paths:
+                if p.exists():
+                    df_2025 = pd.read_csv(p)
+                    break
+            if df_2025 is None:
+                raise FileNotFoundError("Products forecast CSV not found (tried plural and singular names)")
             df_2025["createdAt"] = pd.to_datetime(df_2025["createdAt"])
             # Filter Dec 1-14, 2025, weekdays only
             df_2week = df_2025[
